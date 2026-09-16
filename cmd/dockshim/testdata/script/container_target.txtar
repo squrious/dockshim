@@ -1,0 +1,23 @@
+# A container alias uses plain docker commands.
+exec dockshim install
+exec .dockshim/bin/node --version
+stdout '^flag --interactive$'
+! stdout 'flag --tty'
+stdout '^--user 1001$'
+stdout '^target my-node$'
+stdout '^cmd node --version$'
+grep '^inspect --format \{\{.State.Running\}\} my-node$' $FAKE_DOCKER_STATE/calls
+grep '^start my-node$' $FAKE_DOCKER_STATE/calls
+
+# Already running: not started again.
+rm $FAKE_DOCKER_STATE/calls
+exec .dockshim/bin/node
+! grep start $FAKE_DOCKER_STATE/calls
+
+-- .dockshim/config.yaml --
+global:
+  user: 1000
+aliases:
+  node:
+    container: my-node
+    user: 1001

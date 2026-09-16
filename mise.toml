@@ -1,0 +1,26 @@
+[tools]
+go = "1.27.1"
+golangci-lint = "2.13.2"
+
+[env]
+_.path = ["{{config_root}}/bin"]
+
+[tasks.build]
+description = "Build dockshim into ./bin"
+run = "go build -trimpath -o bin/dockshim ./cmd/dockshim"
+
+[tasks.test]
+description = "Run unit and CLI tests (no docker needed)"
+run = "go test ./..."
+
+[tasks.test-integration]
+description = "Run integration tests against a real docker daemon"
+run = "go test -tags integration -count=1 ./..."
+
+[tasks.lint]
+description = "Vet and lint"
+run = ["go vet ./...", "go vet -tags integration ./...", "golangci-lint run"]
+
+[tasks.install]
+description = "Install dockshim into ~/.local/bin"
+run = "go build -trimpath -o ~/.local/bin/dockshim ./cmd/dockshim"

@@ -1,0 +1,33 @@
+# install creates shims, removes stale ones and leaves foreign files alone.
+exec dockshim install
+stdout '^created: composer, php$'
+stdout 'is not in PATH'
+stdout 'PATH_add .dockshim/bin'
+
+exec dockshim install
+! stdout created
+
+cp config2.yaml .dockshim.yaml
+exec dockshim install
+stdout '^created: node$'
+stdout '^removed: composer$'
+! exists .dockshim/bin/composer
+
+# A file that is not a shim is never replaced.
+rm .dockshim/bin/node
+cp config2.yaml .dockshim/bin/node
+exec dockshim install
+stderr 'skipped, not a dockshim symlink: node'
+
+env PATH=$WORK/.dockshim/bin${:}$PATH
+exec dockshim install
+! stdout 'is not in PATH'
+
+-- .dockshim.yaml --
+aliases:
+  php: {service: tools}
+  composer: {service: tools}
+-- config2.yaml --
+aliases:
+  php: {service: tools}
+  node: {container: node}

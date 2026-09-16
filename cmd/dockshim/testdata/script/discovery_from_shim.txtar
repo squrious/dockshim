@@ -1,0 +1,20 @@
+cd project
+# The config is found next to the shim even when run from outside the project,
+# and the container default workdir is kept.
+exec dockshim install
+mkdir $WORK/elsewhere
+cd $WORK/elsewhere
+exec $WORK/project/.dockshim/bin/php
+stdout '^target tools$'
+! stdout 'workdir'
+
+# Without a shim, discovery walks up from the current directory.
+! exec dockshim config
+stderr 'no dockshim config found'
+
+-- project/.dockshim.yaml --
+bin_dir: .dockshim/bin
+aliases:
+  php:
+    service: tools
+    path_mapping: {.: /app}

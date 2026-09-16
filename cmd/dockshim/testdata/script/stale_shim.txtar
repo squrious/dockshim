@@ -1,0 +1,27 @@
+# A shim whose alias was removed from the config reports it (no prompt without a terminal).
+exec dockshim install
+cp config2.yaml .dockshim.yaml
+env PATH=$WORK/.dockshim/bin${:}$PATH
+exec sh -c 'node; echo code=$?'
+stdout '^code=127$'
+stderr 'alias "node" is not defined in '$WORK'/.dockshim.yaml'
+stderr 'is a stale shim, run `dockshim install` to remove it'
+exists .dockshim/bin/node
+! exists $FAKE_DOCKER_STATE/calls
+
+# Shims outside bin_dir (e.g. after bin_dir changed) still run known aliases, with a warning.
+exec sh -c 'mkdir old && ln -s "$(readlink .dockshim/bin/php)" old/php && ln -s "$(readlink .dockshim/bin/php)" old/node'
+exec old/php
+stdout '^target tools$'
+stderr 'warning: '$WORK'/old/php is outside bin_dir '$WORK'/.dockshim/bin'
+! exec old/node
+stderr 'old/node is a stale shim outside bin_dir .*, remove it manually'
+exists old/node
+
+-- .dockshim.yaml --
+aliases:
+  php: {service: tools}
+  node: {service: tools}
+-- config2.yaml --
+aliases:
+  php: {service: tools}

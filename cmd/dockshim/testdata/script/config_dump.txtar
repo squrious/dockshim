@@ -1,0 +1,102 @@
+exec dockshim config
+cmpenv stdout want.yaml
+
+exec dockshim config node
+! stdout 'php:'
+stdout '^    container: node$'
+
+! exec dockshim config nope
+stderr 'alias "nope" is not defined'
+
+# --config works from anywhere.
+cd /
+exec dockshim --config $WORK/.dockshim.yaml validate
+stdout 'is valid'
+
+-- .dockshim.yaml --
+global:
+  user: 1000
+  env:
+    deny: [FOO]
+    vars: {A: global}
+aliases:
+  php:
+    service: tools
+    path_mapping: {.: /app}
+    env:
+      vars: {A: alias}
+  node:
+    container: node
+    user: "33:33"
+    env:
+      allow: [SSH_AUTH_SOCK]
+-- want.yaml --
+root: $WORK
+file: $WORK/.dockshim.yaml
+bin_dir: $WORK/.dockshim/bin
+aliases:
+  node:
+    container: node
+    user: "33:33"
+    path_mapping: []
+    env:
+      deny:
+        - PATH
+        - HOME
+        - PWD
+        - OLDPWD
+        - TMPDIR
+        - TMP
+        - TEMP
+        - USER
+        - LOGNAME
+        - HOSTNAME
+        - SHELL
+        - SHLVL
+        - _
+        - LS_COLORS
+        - FOO
+      deny_prefixes:
+        - COMPOSE_
+        - DOCKER_
+        - SSH_
+        - XDG_
+        - WSL
+        - BASH_FUNC_
+      allow:
+        - SSH_AUTH_SOCK
+    vars:
+      A: global
+  php:
+    service: tools
+    user: "1000"
+    path_mapping:
+      - host: $WORK
+        container: /app
+    env:
+      deny:
+        - PATH
+        - HOME
+        - PWD
+        - OLDPWD
+        - TMPDIR
+        - TMP
+        - TEMP
+        - USER
+        - LOGNAME
+        - HOSTNAME
+        - SHELL
+        - SHLVL
+        - _
+        - LS_COLORS
+        - FOO
+      deny_prefixes:
+        - COMPOSE_
+        - DOCKER_
+        - SSH_
+        - XDG_
+        - WSL
+        - BASH_FUNC_
+      allow: []
+    vars:
+      A: alias

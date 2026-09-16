@@ -1,0 +1,58 @@
+# A compose alias invoked through PATH forwards args, env, user and workdir.
+exec dockshim install
+stdout '^created: cat, php$'
+env PATH=$WORK/.dockshim/bin${:}$PATH
+env FOO=forwarded HIDDEN=secret MISE_ENV=dev DOCKER_HOST=tcp://x SSH_AUTH_SOCK=/sock
+
+cd src/sub
+exec php -r 'echo 1;'
+stdout '^dir '$WORK'$'
+stdout '^flag -T$'
+stdout '^env FOO=forwarded$'
+stdout '^env MISE_ENV=dev$'
+stdout '^env SSH_AUTH_SOCK=/sock$'
+stdout '^env APP_ENV=test$'
+stdout '^env GREETING=from alias$'
+! stdout 'HIDDEN|DOCKER_HOST|env PATH=|env HOME='
+stdout '^--user [0-9]+:[0-9]+$'
+stdout '^--workdir /app/src/sub$'
+stdout '^target tools$'
+stdout '^cmd php -r echo 1;$'
+
+# The service was down, so it has been started.
+grep '^compose ps --status running --quiet tools$' $FAKE_DOCKER_STATE/calls
+grep '^compose up --detach tools$' $FAKE_DOCKER_STATE/calls
+
+# Longest mapping wins.
+cd $WORK/assets/css
+exec php
+stdout '^--workdir /assets/build/css$'
+
+# stdin is passed through.
+stdin $WORK/input.txt
+exec cat
+stdout '^hello from stdin$'
+
+-- .dockshim.yaml --
+global:
+  env:
+    deny: [HIDDEN]
+    allow: [SSH_AUTH_SOCK]
+    vars:
+      APP_ENV: test
+      GREETING: global
+aliases:
+  php:
+    service: tools
+    path_mapping:
+      .: /app
+      assets: /assets/build
+    env:
+      vars:
+        GREETING: from alias
+  cat:
+    service: tools
+-- src/sub/.keep --
+-- assets/css/.keep --
+-- input.txt --
+hello from stdin

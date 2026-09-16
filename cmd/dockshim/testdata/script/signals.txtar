@@ -1,0 +1,9 @@
+# SIGTERM is forwarded to docker, and a signal-killed command exits with 128+n.
+exec dockshim install
+env PATH=$WORK/.dockshim/bin${:}$PATH FAKE_EXEC_SLEEP=10
+exec sh -c 'php & pid=$!; until [ -e "$FAKE_DOCKER_STATE/sleeping" ]; do /bin/sleep 0.05; done; kill -TERM $pid; wait $pid; echo code=$?'
+stdout '^code=143$'
+
+-- .dockshim.yaml --
+aliases:
+  php: {service: tools}

@@ -1,0 +1,14 @@
+# Compose files and project name are passed to every compose call; compose runs from the project root.
+exec dockshim install
+cd sub
+exec ../.dockshim/bin/php
+stdout '^dir '$WORK'$'
+grep '^compose --file '$WORK'/docker/compose.yaml --project-name demo exec' $FAKE_DOCKER_STATE/calls
+
+-- .dockshim.yaml --
+compose:
+  files: [docker/compose.yaml]
+  project_name: demo
+aliases:
+  php: {service: tools}
+-- sub/.keep --
