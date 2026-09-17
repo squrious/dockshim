@@ -133,6 +133,7 @@ func newRoot(e *Env) *cobra.Command {
 			},
 		},
 		newRunCmd(e, load),
+		newInitCmd(e),
 		&cobra.Command{
 			Use:   "version",
 			Short: "Print the dockshim version",

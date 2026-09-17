@@ -89,7 +89,7 @@ aliases:
   php: {service: tools, path_mapping: {.: /app, ./lib: /lib}, user: host}
   node: {container: node, user: www-data}
 `, nil},
-		{"no aliases", `global: {}`, []string{"aliases: at least one alias is required"}},
+		{"no aliases", `global: {}`, nil},
 		{"target required", `aliases: {php: {}}`, []string{"aliases.php: one of service or container is required"}},
 		{"target exclusive", `aliases: {php: {service: a, container: b}}`, []string{"aliases.php: service and container are mutually exclusive"}},
 		{"bad names", `aliases: {dockshim: {service: a}, "a/b": {service: a}}`, []string{

@@ -10,6 +10,12 @@ Status: accepted (2026-09-16)
 - Paths are resolved against the real (symlink-free) root, so they compare with `os.Getwd`.
 - The YAML is decoded strictly (unknown keys are errors). All validation problems are reported at once, each with its YAML path.
 
+- `dockshim init` writes `.dockshim/config.yaml` by default and `.dockshim.yaml` with `--flat`.
+  - It never creates a second config file next to an existing one.
+  - It overwrites an existing file only with `--force`.
+  - In the default mode it also writes `.dockshim/.gitignore` to ignore `bin/`.
+- A config with no aliases is valid, so the commented starter template validates as is.
+
 ## Why
 - IDEs launch the shims from arbitrary directories. Anchoring on the shim's location finds the right project anyway.
 

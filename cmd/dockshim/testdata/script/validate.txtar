@@ -14,8 +14,8 @@ cd $WORK/ambiguous
 stderr 'ambiguous config'
 
 cd $WORK/empty
-! exec dockshim validate
-stderr 'aliases: at least one alias is required'
+exec dockshim validate
+stdout 'is valid'
 
 cd $WORK/ambiguous
 ! exec dockshim bogus

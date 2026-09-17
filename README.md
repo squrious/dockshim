@@ -5,12 +5,13 @@ Run commands inside Docker containers as if they were installed on the host.
 ```bash
 mise run install              # builds ~/.local/bin/dockshim
 cd my-project
+dockshim init                 # writes .dockshim/config.yaml, then declare aliases in it
 dockshim install              # creates .dockshim/bin/<alias> symlinks
 export PATH="$PWD/.dockshim/bin:$PATH"   # or mise `_.path`, direnv `PATH_add`
 php -v                        # runs `php -v` in the `tools` compose service
 ```
 
-Add `.dockshim/bin/` to the project's `.gitignore`: the symlinks point to a local binary.
+Keep `.dockshim/bin/` out of git, since the symlinks point to a local binary. `dockshim init` writes a `.dockshim/.gitignore` for this.
 
 ## Configuration
 
@@ -63,6 +64,7 @@ A variable that is unset and has no default is an error. Use `${VAR:-}` to allow
 
 | Command | |
 |---|---|
+| `dockshim init [-d dir] [--flat] [--force]` | Create a starter config in `.dockshim/config.yaml` (`--flat`: `.dockshim.yaml`) |
 | `dockshim install` | Create shims for all aliases and remove stale ones |
 | `dockshim config [alias]` | Print the resolved configuration |
 | `dockshim validate` | Validate the configuration |

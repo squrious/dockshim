@@ -43,9 +43,6 @@ func (f *File) Validate() error {
 	validateUser(add, "global.user", f.Global.User)
 	validateEnv(add, "global.env", f.Global.Env)
 
-	if len(f.Aliases) == 0 {
-		add("aliases", "at least one alias is required")
-	}
 	usesCompose := false
 	for _, name := range sortedKeys(f.Aliases) {
 		a := f.Aliases[name]

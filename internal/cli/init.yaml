@@ -1,0 +1,33 @@
+# dockshim configuration.
+# Values support environment interpolation: $VAR, ${VAR}, ${VAR:-default}, ${VAR:?error}, $$ for a literal $.
+
+# Where `dockshim install` creates alias symlinks, relative to the project root.
+# bin_dir: .dockshim/bin
+
+# Options for compose services.
+# compose:
+#   files: [compose.yaml]
+#   project_name: my-project
+
+global:
+  # host (uid:gid running dockshim), uid[:gid] or name[:group].
+  user: host
+  env:
+    # Appended to the built-in denylist (PATH, HOME, USER, DOCKER_*, SSH_*, XDG_*...).
+    deny: []
+    deny_prefixes: []
+    # Always forwarded, even if denied.
+    allow: []
+    # Set in the container.
+    vars: {}
+
+# Each alias runs the command of the same name in its target.
+aliases:
+  # php:
+  #   service: app              # compose service, or `container: <name or id>`
+  #   path_mapping:
+  #     .: /app                 # host path (relative to the project root): container path
+  #   user: 1000                # overrides global.user
+  #   env:
+  #     vars:
+  #       APP_ENV: dev          # merged over global.env.vars

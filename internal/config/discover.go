@@ -8,13 +8,19 @@ import (
 	"strings"
 )
 
-const DirName = ".dockshim"
+const (
+	DirName  = ".dockshim"
+	FlatFile = ".dockshim.yaml"
+)
+
+// DirFile is the config file inside DirName, relative to a project root.
+var DirFile = filepath.Join(DirName, "config.yaml")
 
 // Candidates are relative to a project root, in lookup order.
 var Candidates = []string{
-	".dockshim.yaml",
+	FlatFile,
 	".dockshim.yml",
-	filepath.Join(DirName, "config.yaml"),
+	DirFile,
 	filepath.Join(DirName, "config.yml"),
 }
 

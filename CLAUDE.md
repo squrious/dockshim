@@ -25,7 +25,7 @@ Before finishing a change, run lint and test, and also test-integration when doc
 ## Layout
 
 - `cmd/dockshim`: `main` only. Also holds the CLI end-to-end tests.
-- `internal/cli`: argv[0] dispatch, alias mode (`alias.go`), cobra manager commands (`manager.go`). All I/O goes through `cli.Env`, so it can be injected in tests.
+- `internal/cli`: argv[0] dispatch, alias mode (`alias.go`), cobra manager commands (`manager.go`), `init` (`init.go`) with its embedded template (`init.yaml`; keep it valid and in sync with the schema). All I/O goes through `cli.Env`, so it can be injected in tests.
 - `internal/config`: discovery (`discover.go`), schema, strict parse, env interpolation of values (`interpolate.go`, ADR 0006), validation, and resolution (global merged into each alias, absolute real paths, `user: host`). `Parse` takes a `LookupFunc`: pass a fake in tests, never rely on the real env.
 - `internal/envfilter`: built-in denylist and forwarding rules.
 - `internal/pathmap`: host→container path translation (longest prefix).

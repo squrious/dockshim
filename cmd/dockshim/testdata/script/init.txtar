@@ -1,0 +1,40 @@
+# init writes a valid starter config in .dockshim/ of the current directory.
+exec dockshim init
+stdout '^created '$WORK'/.dockshim/config.yaml$'
+stdout '^created '$WORK'/.dockshim/.gitignore$'
+grep '^/bin/$' .dockshim/.gitignore
+grep '^aliases:$' .dockshim/config.yaml
+exec dockshim validate
+stdout 'is valid'
+exec dockshim install
+! stdout created
+
+# Existing configs are protected.
+! exec dockshim init
+stderr '.dockshim/config.yaml already exists, use --force to overwrite'
+! exec dockshim init --flat
+stderr '.dockshim/config.yaml already exists, a second config file would be ambiguous'
+! exists .dockshim.yaml
+
+cp custom.yaml .dockshim/config.yaml
+exec dockshim init --force
+! grep custom .dockshim/config.yaml
+
+# --flat writes at the root, --dir picks the project directory.
+mkdir other
+exec dockshim init --flat --dir other
+stdout '^created '$WORK'/other/.dockshim.yaml$'
+! exists other/.dockshim
+cd other
+exec dockshim validate
+stdout 'other/.dockshim.yaml is valid'
+cd $WORK
+
+! exec dockshim init -d missing
+stderr 'missing: no such file or directory'
+! exec dockshim init -d custom.yaml
+stderr 'custom.yaml is not a directory'
+
+-- custom.yaml --
+# custom
+aliases: {}
