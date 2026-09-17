@@ -44,18 +44,11 @@ func runManager(args []string, e *Env) int {
 
 func newRoot(e *Env) *cobra.Command {
 	var configFile string
-	load := func() (*config.Project, error) {
-		file := configFile
-		if file == "" {
-			cwd, err := e.cwd()
-			if err != nil {
-				return nil, err
-			}
-			if file, err = config.Discover(cwd); err != nil {
-				return nil, err
-			}
+	load := func(shimPath string) (*config.Project, error) {
+		if configFile == "" {
+			return e.discover(shimPath)
 		}
-		return config.Load(file)
+		return config.Load(configFile)
 	}
 
 	root := &cobra.Command{
@@ -72,7 +65,7 @@ func newRoot(e *Env) *cobra.Command {
 			Short: "Print the resolved configuration",
 			Args:  cobra.MaximumNArgs(1),
 			RunE: func(cmd *cobra.Command, args []string) error {
-				proj, err := load()
+				proj, err := load("")
 				if err != nil {
 					return err
 				}
@@ -96,7 +89,7 @@ func newRoot(e *Env) *cobra.Command {
 			Short: "Validate the configuration",
 			Args:  cobra.NoArgs,
 			RunE: func(cmd *cobra.Command, args []string) error {
-				proj, err := load()
+				proj, err := load("")
 				if err != nil {
 					return err
 				}
@@ -106,21 +99,25 @@ func newRoot(e *Env) *cobra.Command {
 		},
 		&cobra.Command{
 			Use:   "install",
-			Short: "Create a symlink for each alias in the bin directory, and remove stale ones",
+			Short: "Create an entry point for each alias in the bin directory, and remove stale ones",
 			Args:  cobra.NoArgs,
 			RunE: func(cmd *cobra.Command, args []string) error {
-				proj, err := load()
+				proj, err := load("")
 				if err != nil {
 					return err
 				}
 				if e.Executable == "" {
 					return errors.New("cannot determine the dockshim executable path")
 				}
-				res, err := shim.Install(proj.BinDir, e.Executable, slices.Sorted(maps.Keys(proj.Aliases)))
+				shims := make([]shim.Shim, 0, len(proj.Aliases))
+				for _, name := range slices.Sorted(maps.Keys(proj.Aliases)) {
+					shims = append(shims, shim.Shim{Name: name, Mode: proj.Aliases[name].ShimMode})
+				}
+				res, err := shim.Install(proj.BinDir, e.Executable, shims)
 				printList(cmd, "created", res.Created)
 				printList(cmd, "removed", res.Removed)
 				if len(res.Skipped) > 0 {
-					e.errorf("skipped, not a dockshim symlink: %s", strings.Join(res.Skipped, ", "))
+					e.errorf("skipped, not a dockshim shim: %s", strings.Join(res.Skipped, ", "))
 				}
 				if err != nil {
 					return err
@@ -146,13 +143,14 @@ func newRoot(e *Env) *cobra.Command {
 	return root
 }
 
-func newRunCmd(e *Env, load func() (*config.Project, error)) *cobra.Command {
+func newRunCmd(e *Env, load func(shimPath string) (*config.Project, error)) *cobra.Command {
+	var shimPath string
 	cmd := &cobra.Command{
 		Use:   "run <alias> [args...]",
 		Short: "Run an alias, as if invoked through its shim",
 		Args:  cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			proj, err := load()
+			proj, err := load(shimPath)
 			if err != nil {
 				return err
 			}
@@ -160,12 +158,15 @@ func newRunCmd(e *Env, load func() (*config.Project, error)) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if code := execAlias(e, proj, args[0], "", cwd, args[1:]); code != 0 {
+			if code := execAlias(e, proj, args[0], shimPath, cwd, args[1:]); code != 0 {
 				return exitCodeError(code)
 			}
 			return nil
 		},
 	}
+	// Wrapper scripts pass their own path, so discovery is anchored like argv[0] dispatch.
+	cmd.Flags().StringVar(&shimPath, "shim", "", "path of the wrapper script this call comes from")
+	_ = cmd.Flags().MarkHidden("shim")
 	// Everything after the alias name belongs to the aliased command.
 	cmd.Flags().SetInterspersed(false)
 	return cmd

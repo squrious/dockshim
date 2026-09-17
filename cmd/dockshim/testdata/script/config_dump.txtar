@@ -29,6 +29,7 @@ aliases:
     env:
       vars: {A: alias}
   node:
+    shim_mode: symlink
     container: node
     user: "33:33"
     env:
@@ -42,6 +43,7 @@ file: $WORK/.dockshim.yaml
 bin_dir: $WORK/.dockshim/bin
 aliases:
   node:
+    shim_mode: symlink
     container: node
     user: "33:33"
     path_mapping: []
@@ -83,6 +85,7 @@ aliases:
         - /data2
       max_copy_mb: 5
   php:
+    shim_mode: symlink
     service: tools
     user: "1000"
     path_mapping:

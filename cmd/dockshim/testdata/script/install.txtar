@@ -17,7 +17,7 @@ stdout '^removed: composer$'
 rm .dockshim/bin/node
 cp config2.yaml .dockshim/bin/node
 exec dockshim install
-stderr 'skipped, not a dockshim symlink: node'
+stderr 'skipped, not a dockshim shim: node'
 
 env PATH=$WORK/.dockshim/bin${:}$PATH
 exec dockshim install

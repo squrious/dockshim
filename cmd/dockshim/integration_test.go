@@ -13,6 +13,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/squrious/dockshim/internal/config"
 )
 
 const image = "alpine:latest"
@@ -28,14 +30,32 @@ func docker(t *testing.T, dir string, args ...string) string {
 	return strings.TrimSpace(string(out))
 }
 
-// project writes the config, installs shims and returns the project root.
-func project(t *testing.T, config string, files map[string]string) string {
+// eachShimMode runs the whole suite once per shim mode, so both behave identically.
+func eachShimMode(t *testing.T, run func(t *testing.T, mode string)) {
+	for _, mode := range []string{config.ShimSymlink, config.ShimWrapper} {
+		t.Run(mode, func(t *testing.T) { run(t, mode) })
+	}
+}
+
+// baseConfig is the global section shared by the suite.
+func baseConfig(mode string) string {
+	return `
+global:
+  shim_mode: ` + mode + `
+  env:
+    deny: [HIDDEN]
+    vars: {FROM_CONFIG: configured}
+`
+}
+
+// project writes the config, installs the shims and returns the project root.
+func project(t *testing.T, mode, cfg string, files map[string]string) string {
 	t.Helper()
 	root, err := filepath.EvalSymlinks(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
-	files[".dockshim.yaml"] = config
+	files[".dockshim.yaml"] = baseConfig(mode) + cfg
 	files["sub/.keep"] = ""
 	for name, content := range files {
 		p := filepath.Join(root, name)
@@ -48,6 +68,14 @@ func project(t *testing.T, config string, files map[string]string) string {
 	cmd.Dir = root
 	if out, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("install: %v\n%s", err, out)
+	}
+
+	fi, err := os.Lstat(filepath.Join(root, ".dockshim", "bin", "sh"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if isLink := fi.Mode()&os.ModeSymlink != 0; isLink != (mode == config.ShimSymlink) {
+		t.Fatalf("shim mode %s produced %v", mode, fi.Mode())
 	}
 	return root
 }
@@ -148,40 +176,37 @@ func commonChecks(t *testing.T, root string, stop func()) {
 	})
 }
 
-const envConfig = `
-global:
-  env:
-    deny: [HIDDEN]
-    vars: {FROM_CONFIG: configured}
-`
-
 func TestIntegrationContainer(t *testing.T) {
-	name := fmt.Sprintf("dockshim-it-%d", time.Now().UnixNano())
-	root := project(t, envConfig+`
+	eachShimMode(t, func(t *testing.T, mode string) {
+		name := fmt.Sprintf("dockshim-it-%d", time.Now().UnixNano())
+		root := project(t, mode, `
 aliases:
   sh:
     container: `+name+`
     path_mapping: {.: /app}
 `, map[string]string{})
-	docker(t, root, "run", "--detach", "--init", "--name", name, "--workdir", "/", "--volume", root+":/app", image, "sleep", "infinity")
-	t.Cleanup(func() { exec.Command("docker", "rm", "--force", name).Run() })
+		docker(t, root, "run", "--detach", "--init", "--name", name, "--workdir", "/", "--volume", root+":/app", image, "sleep", "infinity")
+		t.Cleanup(func() { exec.Command("docker", "rm", "--force", name).Run() })
 
-	commonChecks(t, root, func() { docker(t, root, "stop", "--time", "0", name) })
+		commonChecks(t, root, func() { docker(t, root, "stop", "--time", "0", name) })
+	})
 }
 
 func TestIntegrationCompose(t *testing.T) {
-	root := composeProject(t, fmt.Sprintf("dockshim-it-%d", time.Now().UnixNano()))
-	t.Cleanup(func() {
-		cmd := exec.Command("docker", "compose", "down", "--volumes", "--timeout", "0")
-		cmd.Dir = root
-		cmd.Run()
-	})
+	eachShimMode(t, func(t *testing.T, mode string) {
+		root := composeProject(t, mode, fmt.Sprintf("dockshim-it-%d", time.Now().UnixNano()))
+		t.Cleanup(func() {
+			cmd := exec.Command("docker", "compose", "down", "--volumes", "--timeout", "0")
+			cmd.Dir = root
+			cmd.Run()
+		})
 
-	commonChecks(t, root, func() { docker(t, root, "compose", "stop", "--timeout", "0") })
+		commonChecks(t, root, func() { docker(t, root, "compose", "stop", "--timeout", "0") })
+	})
 }
 
-func composeProject(t *testing.T, name string) string {
-	return project(t, envConfig+`
+func composeProject(t *testing.T, mode, name string) string {
+	return project(t, mode, `
 compose:
   project_name: `+name+`
 aliases:

@@ -8,7 +8,7 @@ Write structural decisions in `docs/adr`. Be concise here too.
 
 # Project
 
-`dockshim`: a Go CLI that runs commands in Docker containers as if they were on the host. Aliases are symlinks to the binary, and the alias name comes from argv[0]. The config is `.dockshim.yaml` or `.dockshim/config.yaml`. See `README.md` for usage and `docs/adr` for the design.
+`dockshim`: a Go CLI that runs commands in Docker containers as if they were on the host. Each alias is an entry point in `bin_dir`: a symlink to the binary (the alias name comes from argv[0]) or a `/bin/sh` wrapper calling `dockshim run --shim`, per `shim_mode`. The config is `.dockshim.yaml` or `.dockshim/config.yaml`. See `README.md` for usage and `docs/adr` for the design.
 
 ## Toolchain
 
@@ -31,7 +31,7 @@ Before finishing a change, run lint and test, and also test-integration when doc
 - `internal/pathmap`: host→container path translation (longest prefix), and the virtual filesystems never copied.
 - `internal/docker`: the `Runner` interface (os/exec) and the `Target` implementations `Compose` and `Container`.
 - `internal/execplan`: `Build` turns an alias and its args into a `Plan`. `Execute` handles auto-start, the single retry (which replays `PreRun`), and the `PreRun`/`PostRun` steps. `translate.go` implements path translation (ADR 0007) as the first `ArgTransformer`: arguments are host paths, so mapped ones are rewritten and other readable files are copied with a tar stream through `docker cp`. Directories are never copied.
-- `internal/shim`: installs, prunes and locates symlinks.
+- `internal/shim`: creates, prunes and locates the alias entry points, in both modes (symlink, or `/bin/sh` wrapper script calling `dockshim run --shim`). See ADR 0002.
 
 ## Tests
 
@@ -42,7 +42,7 @@ Before finishing a change, run lint and test, and also test-integration when doc
   - Every new user-facing behaviour gets a `.txtar` scenario.
   - Inside the fake, call binaries by absolute path: shims in PATH would shadow them.
 - Interactive paths (the stale-shim prompt) can't run under testscript, which has no tty. Unit-test them with an injected `Prompter`.
-- Integration tests are in `cmd/dockshim/integration_test.go` (`//go:build integration`). They cover a plain container and a compose project, and clean up with `t.Cleanup`.
+- Integration tests are in `cmd/dockshim/integration_test.go` (`//go:build integration`). They cover a plain container and a compose project, and clean up with `t.Cleanup`. `eachShimMode` runs the whole suite in both shim modes: add scenarios to `commonChecks` so both stay covered.
 
 ## Planned work (see ADRs 0005 and 0007)
 

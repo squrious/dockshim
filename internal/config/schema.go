@@ -21,6 +21,7 @@ type Compose struct {
 }
 
 type Global struct {
+	ShimMode        Scalar          `yaml:"shim_mode"`
 	User            Scalar          `yaml:"user"`
 	Env             Env             `yaml:"env"`
 	PathTranslation PathTranslation `yaml:"path_translation"`
@@ -40,6 +41,7 @@ type Env struct {
 }
 
 type Alias struct {
+	ShimMode        Scalar            `yaml:"shim_mode"`
 	Service         string            `yaml:"service"`
 	Container       string            `yaml:"container"`
 	PathMapping     map[string]string `yaml:"path_mapping"`

@@ -21,7 +21,7 @@ func staleSetup(t *testing.T) (shimPath string, e *Env, stderr *bytes.Buffer) {
 	os.WriteFile(exe, nil, 0o755)
 	os.WriteFile(filepath.Join(root, ".dockshim.yaml"), []byte("aliases: {php: {service: tools}}\n"), 0o644)
 	bin := filepath.Join(root, ".dockshim", "bin")
-	if _, err := shim.Install(bin, exe, []string{"php", "gone"}); err != nil {
+	if _, err := shim.Install(bin, exe, []shim.Shim{{Name: "php"}, {Name: "gone"}}); err != nil {
 		t.Fatal(err)
 	}
 	stderr = &bytes.Buffer{}

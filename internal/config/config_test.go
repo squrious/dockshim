@@ -116,6 +116,10 @@ aliases: {php: {service: a, env: {deny_prefixes: [""]}}}
 			`global.env.vars: invalid variable name "B-C"`,
 			`aliases.php.env.deny_prefixes[0]: invalid variable name ""`,
 		}},
+		{"shim mode", `
+global: {shim_mode: link}
+aliases: {php: {service: a, shim_mode: wrapper}}
+`, []string{`global.shim_mode: invalid mode "link" (expected symlink or wrapper)`}},
 		{"path translation", `
 global: {path_translation: {enabled: maybe, max_copy_mb: 0, exclude: [rel]}}
 aliases: {php: {service: a, path_translation: {enabled: "false", max_copy_mb: "${X:-12}", exclude: [/ok]}}}
@@ -237,6 +241,9 @@ func TestResolveUserDefaultsToHost(t *testing.T) {
 	want := strconv.Itoa(os.Getuid()) + ":" + strconv.Itoa(os.Getgid())
 	if got := p.Aliases["php"].User; got != want {
 		t.Fatalf("user = %q, want %q", got, want)
+	}
+	if mode := p.Aliases["php"].ShimMode; mode != ShimSymlink {
+		t.Fatalf("shim mode = %q", mode)
 	}
 	pt := p.Aliases["php"].PathTranslation
 	if !pt.Enabled || pt.MaxCopyMB != DefaultMaxCopyMB || !slices.Equal(pt.Exclude, pathmap.DefaultCopyExclude) {

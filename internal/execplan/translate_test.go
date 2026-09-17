@@ -78,9 +78,9 @@ func newFixture(t *testing.T) *fixture {
 	}
 	os.Symlink("b.txt", filepath.Join(f.outside, "dir", "link"))
 	f.alias = &config.ResolvedAlias{
-		Name:        "php",
-		Container:   "ctr",
-		User:        "1000:1001",
+		Name:      "php",
+		Container: "ctr",
+		User:      "1000:1001",
 		PathMapping: pathmap.Map{
 			{Host: f.proj, Container: "/app"},
 			{Host: filepath.Join(f.proj, "assets"), Container: "/assets/build"},

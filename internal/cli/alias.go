@@ -17,26 +17,30 @@ func runAlias(argv0 string, args []string, e *Env) int {
 		e.errorf("%v", err)
 		return 1
 	}
-
-	// Look next to the shim first: IDEs may run it from any directory.
 	shimPath := shim.Locate(argv0, e.Executable)
-	var starts []string
-	if shimPath != "" {
-		starts = append(starts, filepath.Dir(shimPath))
-	}
-	starts = append(starts, cwd)
-
-	file, err := config.Discover(starts...)
-	if err != nil {
-		e.errorf("%v", err)
-		return 1
-	}
-	proj, err := config.Load(file)
+	proj, err := e.discover(shimPath)
 	if err != nil {
 		e.errorf("%v", err)
 		return 1
 	}
 	return execAlias(e, proj, filepath.Base(argv0), shimPath, cwd, args)
+}
+
+// discover loads the config, looking next to the shim first: IDEs may run it from any directory.
+func (e *Env) discover(shimPath string) (*config.Project, error) {
+	cwd, err := e.cwd()
+	if err != nil {
+		return nil, err
+	}
+	var starts []string
+	if shimPath != "" {
+		starts = append(starts, filepath.Dir(shimPath))
+	}
+	file, err := config.Discover(append(starts, cwd)...)
+	if err != nil {
+		return nil, err
+	}
+	return config.Load(file)
 }
 
 func execAlias(e *Env, proj *config.Project, name, shimPath, cwd string, args []string) int {

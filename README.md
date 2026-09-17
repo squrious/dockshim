@@ -11,7 +11,19 @@ export PATH="$PWD/.dockshim/bin:$PATH"   # or mise `_.path`, direnv `PATH_add`
 php -v                        # runs `php -v` in the `tools` compose service
 ```
 
-Keep `.dockshim/bin/` out of git, since the symlinks point to a local binary. `dockshim init` writes a `.dockshim/.gitignore` for this.
+Keep `.dockshim/bin/` out of git, since the entry points reference a local binary. `dockshim init` writes a `.dockshim/.gitignore` for this.
+
+### Shim modes
+
+`dockshim install` creates one entry point per alias: a symlink to the dockshim binary (default), or a `/bin/sh` wrapper script for platforms without usable symlinks, such as Windows. Both behave identically.
+
+```yaml
+global:
+  shim_mode: wrapper        # symlink (default) or wrapper
+aliases:
+  php:
+    shim_mode: symlink      # overrides global
+```
 
 ## Configuration
 
@@ -80,7 +92,7 @@ A variable that is unset and has no default is an error. Use `${VAR:-}` to allow
 | Command | |
 |---|---|
 | `dockshim init [-d dir] [--flat] [--force]` | Create a starter config in `.dockshim/config.yaml` (`--flat`: `.dockshim.yaml`) |
-| `dockshim install` | Create shims for all aliases and remove stale ones |
+| `dockshim install` | Create the alias entry points and remove stale ones |
 | `dockshim config [alias]` | Print the resolved configuration |
 | `dockshim validate` | Validate the configuration |
 | `dockshim run <alias> [args]` | Run an alias without its shim |

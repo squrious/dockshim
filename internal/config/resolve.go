@@ -17,6 +17,11 @@ import (
 )
 
 const (
+	// ShimSymlink points a symlink at the dockshim executable; ShimWrapper writes a /bin/sh script,
+	// for filesystems without symlinks.
+	ShimSymlink = "symlink"
+	ShimWrapper = "wrapper"
+
 	UserHost         = "host"
 	DefaultBinDir    = DirName + "/bin"
 	DefaultMaxCopyMB = 100
@@ -33,6 +38,7 @@ type Project struct {
 
 type ResolvedAlias struct {
 	Name            string                  `yaml:"-"`
+	ShimMode        string                  `yaml:"shim_mode"`
 	Service         string                  `yaml:"service,omitempty"`
 	Container       string                  `yaml:"container,omitempty"`
 	User            string                  `yaml:"user"`
@@ -115,6 +121,7 @@ func (f *File) Resolve(file string) *Project {
 	for name, a := range f.Aliases {
 		r := &ResolvedAlias{
 			Name:      name,
+			ShimMode:  string(cmp.Or(a.ShimMode, f.Global.ShimMode, ShimSymlink)),
 			Service:   a.Service,
 			Container: a.Container,
 			User:      resolveUser(string(cmp.Or(a.User, f.Global.User, UserHost))),
