@@ -3,6 +3,7 @@ package config
 
 import (
 	"fmt"
+	"strconv"
 
 	"gopkg.in/yaml.v3"
 )
@@ -20,8 +21,15 @@ type Compose struct {
 }
 
 type Global struct {
-	User Scalar `yaml:"user"`
-	Env  Env    `yaml:"env"`
+	User            Scalar          `yaml:"user"`
+	Env             Env             `yaml:"env"`
+	PathTranslation PathTranslation `yaml:"path_translation"`
+}
+
+type PathTranslation struct {
+	Enabled   Scalar   `yaml:"enabled"`
+	Exclude   []string `yaml:"exclude"`
+	MaxCopyMB Scalar   `yaml:"max_copy_mb"`
 }
 
 type Env struct {
@@ -32,11 +40,12 @@ type Env struct {
 }
 
 type Alias struct {
-	Service     string            `yaml:"service"`
-	Container   string            `yaml:"container"`
-	PathMapping map[string]string `yaml:"path_mapping"`
-	User        Scalar            `yaml:"user"`
-	Env         Env               `yaml:"env"`
+	Service         string            `yaml:"service"`
+	Container       string            `yaml:"container"`
+	PathMapping     map[string]string `yaml:"path_mapping"`
+	User            Scalar            `yaml:"user"`
+	Env             Env               `yaml:"env"`
+	PathTranslation PathTranslation   `yaml:"path_translation"`
 }
 
 // Scalar accepts any YAML scalar (string, int, bool...) as its literal text.
@@ -52,4 +61,18 @@ func (s *Scalar) UnmarshalYAML(n *yaml.Node) error {
 	}
 	*s = Scalar(n.Value)
 	return nil
+}
+
+// Bool assumes a validated value.
+func (s Scalar) Bool() bool {
+	b, _ := strconv.ParseBool(string(s))
+	return b
+}
+
+// Int assumes a validated value, and returns def when empty.
+func (s Scalar) Int(def int) int {
+	if n, err := strconv.Atoi(string(s)); err == nil {
+		return n
+	}
+	return def
 }

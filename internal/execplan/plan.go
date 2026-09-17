@@ -37,13 +37,24 @@ type Input struct {
 	Args         []string
 	TTY          bool
 	Transformers []ArgTransformer
+	Stderr       io.Writer // warnings
 }
 
 func Build(in Input) (*Plan, error) {
 	p := &Plan{Target: NewTarget(in.Project, in.Alias, in.Runner)}
 
+	transformers := in.Transformers
+	if in.Alias.PathTranslation.Enabled {
+		warn := func(format string, args ...any) {
+			if in.Stderr != nil {
+				_, _ = fmt.Fprintf(in.Stderr, "dockshim: warning: "+format+"\n", args...)
+			}
+		}
+		transformers = append([]ArgTransformer{newPathTranslator(in, warn)}, transformers...)
+	}
+
 	args := in.Args
-	for _, t := range in.Transformers {
+	for _, t := range transformers {
 		var err error
 		if args, err = t.Transform(p, args); err != nil {
 			return nil, err
@@ -87,34 +98,47 @@ type Stdio struct {
 }
 
 // Execute starts the target if needed, runs the command and returns its exit code.
-// When the command fails with 1 because the target went down meanwhile, it is started again and the command retried once.
-func Execute(p *Plan, r docker.Runner, stdio Stdio) (code int, err error) {
+// When the command fails with 1 because the target went down meanwhile, it is started again,
+// PreRun steps replayed and the command retried once. PostRun failures are only warnings.
+func Execute(p *Plan, r docker.Runner, stdio Stdio) (int, error) {
 	defer func() {
 		for _, step := range slices.Backward(p.PostRun) {
-			if e := step(); e != nil && err == nil {
-				err = e
+			if err := step(); err != nil && stdio.Err != nil {
+				_, _ = fmt.Fprintf(stdio.Err, "dockshim: warning: %v\n", err)
 			}
 		}
 	}()
-	if !p.Target.IsRunning() {
+	start := func(verb string) error {
 		if err := p.Target.EnsureUp(stdio.Err); err != nil {
-			return 1, fmt.Errorf("starting %s: %w", p.Target, err)
+			return fmt.Errorf("%s %s: %w", verb, p.Target, err)
 		}
+		return runSteps(p.PreRun)
 	}
 
-	for _, step := range p.PreRun {
-		if err := step(); err != nil {
+	if p.Target.IsRunning() {
+		if err := runSteps(p.PreRun); err != nil {
 			return 1, err
 		}
+	} else if err := start("starting"); err != nil {
+		return 1, err
 	}
 
 	cmd := docker.Cmd{Dir: p.Target.Dir(), Args: p.Args, Env: p.Env, Stdin: stdio.In, Stdout: stdio.Out, Stderr: stdio.Err}
-	code, err = r.Run(cmd)
+	code, err := r.Run(cmd)
 	if err != nil || code != 1 || p.Target.IsRunning() {
 		return code, err
 	}
-	if err := p.Target.EnsureUp(stdio.Err); err != nil {
-		return 1, fmt.Errorf("restarting %s: %w", p.Target, err)
+	if err := start("restarting"); err != nil {
+		return 1, err
 	}
 	return r.Run(cmd)
+}
+
+func runSteps(steps []Step) error {
+	for _, step := range steps {
+		if err := step(); err != nil {
+			return err
+		}
+	}
+	return nil
 }

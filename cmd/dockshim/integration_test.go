@@ -108,6 +108,40 @@ func commonChecks(t *testing.T, root string, stop func()) {
 			t.Fatalf("out.txt = %q", b)
 		}
 	})
+	t.Run("path translation", func(t *testing.T) {
+		ext, err := filepath.EvalSymlinks(t.TempDir())
+		if err != nil {
+			t.Fatal(err)
+		}
+		os.MkdirAll(filepath.Join(ext, "dir"), 0o755)
+		os.WriteFile(filepath.Join(ext, "file.txt"), []byte("external"), 0o600)
+		os.WriteFile(filepath.Join(root, "mapped.txt"), []byte("mapped"), 0o644)
+		os.Symlink(filepath.Join(ext, "file.txt"), filepath.Join(ext, "link.md"))
+
+		// A copied file keeps its name and belongs to the container user; mapped paths are rewritten.
+		script := `cat "$1"; echo; stat -c %u:%g "$1"; basename "$1"; cat "$2"; echo; cat "$3"; echo "$4"`
+		r := shim(t, root, sub, "", nil, "sh", "-c", script, "_",
+			filepath.Join(ext, "link.md"), filepath.Join(root, "mapped.txt"), "/etc/hostname", "--in="+filepath.Join(root, "sub"))
+		hostname, err := os.ReadFile("/etc/hostname")
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := "external\n" + hostUser + "\nlink.md\nmapped\n" + strings.TrimSpace(string(hostname)) + "\n--in=/app/sub"
+		expect(t, r, want, 0)
+
+		// Directories are left to the container, with a warning.
+		r = shim(t, root, sub, "", nil, "sh", "-c", `echo "$1"`, "_", filepath.Join(ext, "dir"))
+		expect(t, r, filepath.Join(ext, "dir"), 0)
+		if !strings.Contains(r.stderr, "is a directory") {
+			t.Fatalf("stderr = %q", r.stderr)
+		}
+
+		// Copies are removed, on success and on failure.
+		expect(t, shim(t, root, sub, "", nil, "sh", "-c", `ls /tmp | grep -c dockshim-`), "0", 1)
+		failing := shim(t, root, sub, "", nil, "sh", "-c", `test -f "$1" && exit 7`, "_", filepath.Join(ext, "file.txt"))
+		expect(t, failing, "", 7)
+		expect(t, shim(t, root, sub, "", nil, "sh", "-c", `ls /tmp | grep -c dockshim-`), "0", 1)
+	})
 	t.Run("auto start", func(t *testing.T) {
 		stop()
 		expect(t, shim(t, root, sub, "", nil, "sh", "-c", "echo up"), "up", 0)

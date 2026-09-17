@@ -1,0 +1,56 @@
+# Host paths in arguments are rewritten for the container, or copied into a temporary directory.
+cd proj
+exec dockshim install
+env PATH=$WORK/proj/.dockshim/bin${:}$PATH
+cd src
+
+exec php $WORK/proj/src/in.txt in.txt ../../outside/a.txt --opt=$WORK/outside/a.txt ../../outside/missing /dev/null -v
+stdout '^cmd php /app/src/in.txt in.txt /tmp/dockshim-[0-9a-f]{16}/0/a.txt --opt=/tmp/dockshim-[0-9a-f]{16}/0/a.txt ../../outside/missing /dev/null -v$'
+grep '^cp --archive - abc123:/tmp$' $FAKE_DOCKER_STATE/calls
+grep '^exec --user 0 abc123 rm -rf /tmp/dockshim-[0-9a-f]{16}$' $FAKE_DOCKER_STATE/calls
+
+# Files are really copied, and removed afterwards.
+exec cat ../../outside/a.txt $WORK/outside/dir/b.txt
+stdout '^outside A$'
+stdout '^outside B$'
+exec ls $FAKE_DOCKER_STATE/cp
+! stdout .
+
+# Removed even when the command fails.
+env FAKE_EXEC_EXIT=3
+exec sh -c 'cat ../../outside/a.txt; echo code=$?'
+stdout '^code=3$'
+exec ls $FAKE_DOCKER_STATE/cp
+! stdout .
+env FAKE_EXEC_EXIT=
+
+# Directories are not copied, and say so.
+exec php $WORK/outside
+stdout '^cmd php '$WORK'/outside$'
+stderr 'warning: not copying '$WORK'/outside into the container: is a directory'
+
+# Nothing is copied when nothing needs it, or when disabled.
+rm $FAKE_DOCKER_STATE/calls
+exec php in.txt
+exec raw ../../outside/a.txt
+stdout '^cmd raw ../../outside/a.txt$'
+! grep '^cp ' $FAKE_DOCKER_STATE/calls
+
+-- proj/.dockshim.yaml --
+aliases:
+  php:
+    service: tools
+    path_mapping: {.: /app}
+  cat:
+    service: tools
+    path_mapping: {.: /app}
+  raw:
+    service: tools
+    path_mapping: {.: /app}
+    path_translation: {enabled: false}
+-- proj/src/in.txt --
+in
+-- outside/a.txt --
+outside A
+-- outside/dir/b.txt --
+outside B

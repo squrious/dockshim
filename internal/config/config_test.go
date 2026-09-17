@@ -116,6 +116,14 @@ aliases: {php: {service: a, env: {deny_prefixes: [""]}}}
 			`global.env.vars: invalid variable name "B-C"`,
 			`aliases.php.env.deny_prefixes[0]: invalid variable name ""`,
 		}},
+		{"path translation", `
+global: {path_translation: {enabled: maybe, max_copy_mb: 0, exclude: [rel]}}
+aliases: {php: {service: a, path_translation: {enabled: "false", max_copy_mb: "${X:-12}", exclude: [/ok]}}}
+`, []string{
+			`global.path_translation.enabled: invalid boolean "maybe"`,
+			`global.path_translation.max_copy_mb: must be a positive integer, got "0"`,
+			`global.path_translation.exclude[0]: host path "rel" must be absolute`,
+		}},
 		{"compose without service", `
 compose: {files: [c.yaml]}
 aliases: {php: {container: a}}
@@ -229,6 +237,10 @@ func TestResolveUserDefaultsToHost(t *testing.T) {
 	want := strconv.Itoa(os.Getuid()) + ":" + strconv.Itoa(os.Getgid())
 	if got := p.Aliases["php"].User; got != want {
 		t.Fatalf("user = %q, want %q", got, want)
+	}
+	pt := p.Aliases["php"].PathTranslation
+	if !pt.Enabled || pt.MaxCopyMB != DefaultMaxCopyMB || !slices.Equal(pt.Exclude, pathmap.DefaultCopyExclude) {
+		t.Fatalf("path translation defaults = %+v", pt)
 	}
 	if p.BinDir != filepath.Join(p.Root, ".dockshim", "bin") {
 		t.Fatalf("bin_dir = %q", p.BinDir)

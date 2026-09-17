@@ -16,6 +16,9 @@ stdout 'is valid'
 -- .dockshim.yaml --
 global:
   user: 1000
+  path_translation:
+    exclude: [/data]
+    max_copy_mb: 5
   env:
     deny: [FOO]
     vars: {A: global}
@@ -30,6 +33,9 @@ aliases:
     user: "33:33"
     env:
       allow: [SSH_AUTH_SOCK]
+    path_translation:
+      enabled: false
+      exclude: [/data2]
 -- want.yaml --
 root: $WORK
 file: $WORK/.dockshim.yaml
@@ -67,6 +73,15 @@ aliases:
         - SSH_AUTH_SOCK
     vars:
       A: global
+    path_translation:
+      enabled: false
+      exclude:
+        - /dev
+        - /proc
+        - /sys
+        - /data
+        - /data2
+      max_copy_mb: 5
   php:
     service: tools
     user: "1000"
@@ -100,3 +115,11 @@ aliases:
       allow: []
     vars:
       A: alias
+    path_translation:
+      enabled: true
+      exclude:
+        - /dev
+        - /proc
+        - /sys
+        - /data
+      max_copy_mb: 5

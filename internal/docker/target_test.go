@@ -67,6 +67,21 @@ func TestCompose(t *testing.T) {
 	}
 }
 
+func TestContainerID(t *testing.T) {
+	r := &fakeRunner{}
+	c := &Compose{Runner: r, Service: "tools"}
+	if _, err := c.ContainerID(); err == nil {
+		t.Fatal("expected error when not running")
+	}
+	r.running = true
+	if id, err := c.ContainerID(); id != "abc123" || err != nil {
+		t.Fatalf("id=%q err=%v", id, err)
+	}
+	if id, _ := (&Container{Name: "node"}).ContainerID(); id != "node" {
+		t.Fatalf("id=%q", id)
+	}
+}
+
 func TestContainer(t *testing.T) {
 	r := &fakeRunner{running: true}
 	c := &Container{Runner: r, ProjectDir: "/proj", Name: "node"}

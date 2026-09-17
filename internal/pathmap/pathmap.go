@@ -7,6 +7,10 @@ import (
 	"strings"
 )
 
+// DefaultCopyExclude lists virtual filesystems: their files cannot be copied meaningfully,
+// and the container's own versions mean the same thing.
+var DefaultCopyExclude = []string{"/dev", "/proc", "/sys"}
+
 type Mapping struct {
 	Host      string `yaml:"host"`
 	Container string `yaml:"container"`

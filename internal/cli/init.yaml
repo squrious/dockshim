@@ -20,6 +20,12 @@ global:
     allow: []
     # Set in the container.
     vars: {}
+  # Host paths in arguments: mapped ones are rewritten, other existing files copied to /tmp in the container.
+  path_translation:
+    enabled: true
+    # Paths that keep their value, to designate the container's own files. /dev, /proc and /sys always do.
+    exclude: []
+    max_copy_mb: 100
 
 # Each alias runs the command of the same name in its target.
 aliases:

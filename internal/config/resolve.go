@@ -17,8 +17,9 @@ import (
 )
 
 const (
-	UserHost      = "host"
-	DefaultBinDir = DirName + "/bin"
+	UserHost         = "host"
+	DefaultBinDir    = DirName + "/bin"
+	DefaultMaxCopyMB = 100
 )
 
 // Project is a fully resolved configuration: paths are absolute, aliases merged with global.
@@ -31,13 +32,21 @@ type Project struct {
 }
 
 type ResolvedAlias struct {
-	Name        string            `yaml:"-"`
-	Service     string            `yaml:"service,omitempty"`
-	Container   string            `yaml:"container,omitempty"`
-	User        string            `yaml:"user"`
-	PathMapping pathmap.Map       `yaml:"path_mapping"`
-	Env         envfilter.Rules   `yaml:"env"`
-	Vars        map[string]string `yaml:"vars"`
+	Name            string                  `yaml:"-"`
+	Service         string                  `yaml:"service,omitempty"`
+	Container       string                  `yaml:"container,omitempty"`
+	User            string                  `yaml:"user"`
+	PathMapping     pathmap.Map             `yaml:"path_mapping"`
+	Env             envfilter.Rules         `yaml:"env"`
+	Vars            map[string]string       `yaml:"vars"`
+	PathTranslation ResolvedPathTranslation `yaml:"path_translation"`
+}
+
+type ResolvedPathTranslation struct {
+	Enabled bool `yaml:"enabled"`
+	// Exclude lists host paths never copied into the container.
+	Exclude   []string `yaml:"exclude"`
+	MaxCopyMB int      `yaml:"max_copy_mb"`
 }
 
 // Load parses, validates and resolves the config file, interpolating the process environment.
@@ -115,6 +124,11 @@ func (f *File) Resolve(file string) *Project {
 				Allow:        concat(f.Global.Env.Allow, a.Env.Allow),
 			},
 			Vars: map[string]string{},
+			PathTranslation: ResolvedPathTranslation{
+				Enabled:   cmp.Or(a.PathTranslation.Enabled, f.Global.PathTranslation.Enabled, "true").Bool(),
+				Exclude:   concat(pathmap.DefaultCopyExclude, f.Global.PathTranslation.Exclude, a.PathTranslation.Exclude),
+				MaxCopyMB: cmp.Or(a.PathTranslation.MaxCopyMB, f.Global.PathTranslation.MaxCopyMB).Int(DefaultMaxCopyMB),
+			},
 		}
 		for _, vars := range []map[string]Scalar{f.Global.Env.Vars, a.Env.Vars} {
 			for k, v := range vars {

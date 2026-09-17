@@ -56,6 +56,7 @@ func execAlias(e *Env, proj *config.Project, name, shimPath, cwd string, args []
 		Environ: e.Environ,
 		Args:    append([]string{name}, args...),
 		TTY:     e.TTY,
+		Stderr:  e.Stderr,
 	})
 	if err != nil {
 		e.errorf("%v", err)

@@ -105,6 +105,7 @@ func (f *fakeTarget) EnsureUp(io.Writer) error {
 	return f.upErr
 }
 func (f *fakeTarget) ExecArgs(docker.ExecOptions, []string) []string { return nil }
+func (f *fakeTarget) ContainerID() (string, error)                   { return "ctr", nil }
 
 type fakeRunner struct {
 	codes []int
@@ -132,7 +133,7 @@ func TestExecute(t *testing.T) {
 		{"starts when down", []bool{false, true}, []int{0}, nil, 0, false, "running? up pre exec post"},
 		{"exit code kept", []bool{true}, []int{42}, nil, 42, false, "running? pre exec post"},
 		{"exit 1 while still running", []bool{true}, []int{1}, nil, 1, false, "running? pre exec running? post"},
-		{"retries once when stopped meanwhile", []bool{true, false}, []int{1, 1}, nil, 1, false, "running? pre exec running? up exec post"},
+		{"retries once when stopped meanwhile", []bool{true, false}, []int{1, 1}, nil, 1, false, "running? pre exec running? up pre exec post"},
 		{"start failure", []bool{false}, nil, errors.New("boom"), 1, true, "running? up post"},
 	}
 	for _, tt := range tests {

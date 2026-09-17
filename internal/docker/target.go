@@ -24,6 +24,8 @@ type Target interface {
 	// EnsureUp starts the target, keeping existing containers and volumes. Idempotent.
 	EnsureUp(stderr io.Writer) error
 	ExecArgs(opts ExecOptions, argv []string) []string
+	// ContainerID identifies the running container, for docker cp and exec.
+	ContainerID() (string, error)
 }
 
 func commonExecFlags(opts ExecOptions) []string {
@@ -87,6 +89,16 @@ func (c *Compose) IsRunning() bool {
 	return code == 0 && out != ""
 }
 
+// ContainerID returns the first container of the service; scaled services are not distinguished.
+func (c *Compose) ContainerID() (string, error) {
+	out, code := output(c.Runner, c.ProjectDir, append(c.base(), "ps", "--status", "running", "--quiet", c.Service)...)
+	id, _, _ := strings.Cut(out, "\n")
+	if code != 0 || id == "" {
+		return "", fmt.Errorf("%s is not running", c)
+	}
+	return id, nil
+}
+
 func (c *Compose) EnsureUp(stderr io.Writer) error {
 	env := append(os.Environ(), "COMPOSE_PROGRESS=quiet")
 	return run(c.Runner, c.ProjectDir, env, stderr, stderr, append(c.base(), "up", "--detach", c.Service)...)
@@ -115,6 +127,8 @@ func (c *Container) IsRunning() bool {
 	out, code := output(c.Runner, c.ProjectDir, "inspect", "--format", "{{.State.Running}}", c.Name)
 	return code == 0 && out == "true"
 }
+
+func (c *Container) ContainerID() (string, error) { return c.Name, nil }
 
 func (c *Container) EnsureUp(stderr io.Writer) error {
 	return run(c.Runner, c.ProjectDir, nil, io.Discard, stderr, "start", c.Name)

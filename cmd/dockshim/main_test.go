@@ -39,7 +39,9 @@ func run(m *testing.M) int {
 // fakeDocker records calls in $FAKE_DOCKER_STATE/calls and emulates the subcommands dockshim uses.
 // A target is running when $FAKE_DOCKER_STATE/running exists.
 // Creating $FAKE_DOCKER_STATE/stop-on-exec makes the next exec stop the target and fail.
-// exec prints what it received, and exits with $FAKE_EXEC_EXIT.
+// cp extracts the archive into $FAKE_DOCKER_STATE/cp, standing for the container /tmp.
+// exec prints what it received, and exits with $FAKE_EXEC_EXIT. It emulates `cat` (stdin, or
+// files from the copied /tmp) and `rm`.
 // With $FAKE_EXEC_SLEEP, exec creates $FAKE_DOCKER_STATE/sleeping then sleeps.
 const fakeDocker = `#!/bin/sh
 state=${FAKE_DOCKER_STATE:?}
@@ -53,6 +55,9 @@ case "$sub" in
   ps) [ -e "$state/running" ] && echo abc123; exit 0;;
   inspect) if [ -e "$state/running" ]; then echo true; else echo false; fi; exit 0;;
   up|start) touch "$state/running"; exit 0;;
+  cp)
+    [ "$1 $2" = "--archive -" ] || { echo "fake: unexpected cp $*" >&2; exit 99; }
+    /bin/mkdir -p "$state/cp" && exec /usr/bin/tar -xf - -C "$state/cp" --no-same-owner;;
   exec)
     [ -e "$state/running" ] || { echo "fake: not running" >&2; exit 1; }
     if [ -e "$state/stop-on-exec" ]; then rm -f "$state/stop-on-exec" "$state/running"; exit 1; fi
@@ -67,7 +72,10 @@ case "$sub" in
     done
     echo "target $1"; shift
     echo "cmd $*"
-    [ "$1" = cat ] && /bin/cat
+    case "$1" in
+      cat) shift; if [ $# -eq 0 ]; then /bin/cat; else for f; do /bin/cat "$state/cp${f#/tmp}"; done; fi;;
+      rm) /bin/rm -rf "$state/cp${3#/tmp}";;
+    esac
     if [ -n "$FAKE_EXEC_SLEEP" ]; then touch "$state/sleeping"; exec /bin/sleep "$FAKE_EXEC_SLEEP"; fi
     exit "${FAKE_EXEC_EXIT:-0}";;
 esac

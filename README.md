@@ -43,6 +43,21 @@ aliases:
       deny: [BAZ]               # appended
 ```
 
+### Path translation
+
+Arguments name host paths, and dockshim makes them usable in the container:
+- **Paths under a `path_mapping`** are rewritten: `/home/me/proj/src/a.php` becomes `/app/src/a.php`. Relative paths are kept as typed when the working directory already resolves them.
+- **Other existing files** are copied into `/tmp/dockshim-<random>/` in the container for the duration of the command, then removed. Changes made to a copy are not brought back.
+- **Directories are not copied**, and neither are `/dev`, `/proc` and `/sys`. Such an argument keeps its value, so it designates the container's own path. Except for the virtual filesystems, dockshim warns when this happens.
+
+```yaml
+global:
+  path_translation:
+    enabled: true               # default
+    exclude: [/usr/local/etc]   # paths that should mean the container's own
+    max_copy_mb: 100            # default; larger files are left untouched
+```
+
 ### Environment variables
 
 Values (not keys) are interpolated from the environment, with Compose-like syntax:
