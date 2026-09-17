@@ -40,7 +40,7 @@ type ResolvedAlias struct {
 	Vars        map[string]string `yaml:"vars"`
 }
 
-// Load parses, validates and resolves the config file.
+// Load parses, validates and resolves the config file, interpolating the process environment.
 func Load(file string) (*Project, error) {
 	file, err := filepath.Abs(file)
 	if err != nil {
@@ -50,7 +50,7 @@ func Load(file string) (*Project, error) {
 	if err != nil {
 		return nil, err
 	}
-	f, err := Parse(data)
+	f, err := Parse(data, os.LookupEnv)
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", file, err)
 	}
@@ -60,11 +60,27 @@ func Load(file string) (*Project, error) {
 	return f.Resolve(file), nil
 }
 
-func Parse(data []byte) (*File, error) {
+func Parse(data []byte, lookup LookupFunc) (*File, error) {
+	// Node.Decode cannot reject unknown fields: check the raw document strictly first.
 	var f File
 	dec := yaml.NewDecoder(bytes.NewReader(data))
 	dec.KnownFields(true)
-	if err := dec.Decode(&f); err != nil && !errors.Is(err, io.EOF) {
+	if err := dec.Decode(&f); err != nil {
+		if errors.Is(err, io.EOF) {
+			return &f, nil
+		}
+		return nil, err
+	}
+
+	var doc yaml.Node
+	if err := yaml.Unmarshal(data, &doc); err != nil {
+		return nil, err
+	}
+	if err := interpolateNode(&doc, lookup); err != nil {
+		return nil, err
+	}
+	f = File{}
+	if err := doc.Decode(&f); err != nil {
 		return nil, err
 	}
 	return &f, nil

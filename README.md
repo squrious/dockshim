@@ -42,6 +42,23 @@ aliases:
       deny: [BAZ]               # appended
 ```
 
+### Environment variables
+
+Values (not keys) are interpolated from the environment, with Compose-like syntax:
+
+```yaml
+global:
+  user: ${APP_UID:-1000}        # default when unset or empty
+aliases:
+  php:
+    service: ${PHP_SERVICE:?set PHP_SERVICE}   # custom error
+    env:
+      vars:
+        PS1: $$ ${USER}         # $$ is a literal $
+```
+
+A variable that is unset and has no default is an error. Use `${VAR:-}` to allow it to be empty.
+
 ## Commands
 
 | Command | |

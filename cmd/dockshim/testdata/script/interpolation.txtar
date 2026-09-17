@@ -1,0 +1,39 @@
+# Config values interpolate the environment dockshim runs in.
+env SVC=tools APP_UID=1234
+exec dockshim install
+exec .dockshim/bin/php
+stdout '^target tools$'
+stdout '^--user 1234:1234$'
+stdout '^env GREETING=hello tools$'
+stdout '^env LITERAL=\$HOME$'
+stdout '^env MODE=dev$'
+
+env MODE_OVERRIDE=prod
+exec .dockshim/bin/php
+stdout '^env MODE=prod$'
+
+exec dockshim config php
+stdout 'service: tools'
+
+# Unset variables without a default are errors; empty ones are kept.
+! exec dockshim --config required.yaml validate
+stderr 'required.yaml: line 3: variable NEVER_SET is not set \(use \$\{NEVER_SET:-\} to allow it\)'
+env SVC=
+! exec dockshim validate
+stderr 'aliases.php: one of service or container is required'
+
+-- .dockshim.yaml --
+global:
+  user: ${APP_UID}:${APP_GID:-$APP_UID}
+aliases:
+  php:
+    service: ${SVC}
+    env:
+      vars:
+        GREETING: hello $SVC
+        LITERAL: $$HOME
+        MODE: ${MODE_OVERRIDE:-dev}
+-- required.yaml --
+aliases:
+  php:
+    service: ${NEVER_SET}

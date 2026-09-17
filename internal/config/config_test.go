@@ -23,6 +23,8 @@ func write(t *testing.T, path, content string) {
 	}
 }
 
+func noEnv(string) (string, bool) { return "", false }
+
 const minimal = "aliases: {php: {service: tools}}\n"
 
 func TestDiscover(t *testing.T) {
@@ -121,7 +123,7 @@ aliases: {php: {container: a}}
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			f, err := Parse([]byte(tt.yaml))
+			f, err := Parse([]byte(tt.yaml), noEnv)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -149,10 +151,10 @@ aliases: {php: {container: a}}
 }
 
 func TestParseRejectsUnknownFields(t *testing.T) {
-	if _, err := Parse([]byte("aliases: {php: {servce: a}}")); err == nil || !strings.Contains(err.Error(), "servce") {
+	if _, err := Parse([]byte("aliases: {php: {servce: a}}"), noEnv); err == nil || !strings.Contains(err.Error(), "servce") {
 		t.Fatalf("got %v", err)
 	}
-	if _, err := Parse([]byte("global: {user: [1]}")); err == nil {
+	if _, err := Parse([]byte("global: {user: [1]}"), noEnv); err == nil {
 		t.Fatal("expected error for non-scalar user")
 	}
 }
@@ -222,7 +224,7 @@ aliases:
 }
 
 func TestResolveUserDefaultsToHost(t *testing.T) {
-	f, _ := Parse([]byte(minimal))
+	f, _ := Parse([]byte(minimal), noEnv)
 	p := f.Resolve(filepath.Join(t.TempDir(), ".dockshim.yaml"))
 	want := strconv.Itoa(os.Getuid()) + ":" + strconv.Itoa(os.Getgid())
 	if got := p.Aliases["php"].User; got != want {
