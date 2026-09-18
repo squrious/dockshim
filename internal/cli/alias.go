@@ -18,7 +18,7 @@ func runAlias(argv0 string, args []string, e *Env) int {
 		return 1
 	}
 	shimPath := shim.Locate(argv0, e.Executable)
-	proj, err := e.discover(shimPath)
+	proj, err := e.discover(cwd, shimPath)
 	if err != nil {
 		e.errorf("%v", err)
 		return 1
@@ -27,11 +27,7 @@ func runAlias(argv0 string, args []string, e *Env) int {
 }
 
 // discover loads the config, looking next to the shim first: IDEs may run it from any directory.
-func (e *Env) discover(shimPath string) (*config.Project, error) {
-	cwd, err := e.cwd()
-	if err != nil {
-		return nil, err
-	}
+func (e *Env) discover(cwd, shimPath string) (*config.Project, error) {
 	var starts []string
 	if shimPath != "" {
 		starts = append(starts, filepath.Dir(shimPath))
@@ -40,7 +36,7 @@ func (e *Env) discover(shimPath string) (*config.Project, error) {
 	if err != nil {
 		return nil, err
 	}
-	return config.Load(file)
+	return config.Load(file, config.LookupEnviron(e.Environ))
 }
 
 func execAlias(e *Env, proj *config.Project, name, shimPath, cwd string, args []string) int {
@@ -66,7 +62,7 @@ func execAlias(e *Env, proj *config.Project, name, shimPath, cwd string, args []
 		e.errorf("%v", err)
 		return 1
 	}
-	code, err := execplan.Execute(plan, e.Runner, execplan.Stdio{In: e.Stdin, Out: e.Stdout, Err: e.Stderr})
+	code, err := execplan.Execute(plan, execplan.Stdio{In: e.Stdin, Out: e.Stdout, Err: e.Stderr})
 	if err != nil {
 		e.errorf("%v", err)
 		if code == 0 {

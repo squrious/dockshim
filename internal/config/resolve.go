@@ -13,6 +13,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/squrious/dockshim/internal/envfilter"
+	"github.com/squrious/dockshim/internal/hostpath"
 	"github.com/squrious/dockshim/internal/pathmap"
 )
 
@@ -22,6 +23,7 @@ const (
 	ShimSymlink = "symlink"
 	ShimWrapper = "wrapper"
 
+	// UserHost runs commands as the uid:gid running dockshim. It is the default user.
 	UserHost         = "host"
 	DefaultBinDir    = DirName + "/bin"
 	DefaultMaxCopyMB = 100
@@ -36,8 +38,9 @@ type Project struct {
 	Aliases map[string]*ResolvedAlias `yaml:"aliases"`
 }
 
+// ResolvedAlias is an alias with global settings merged in: users are uid:gid or names, path
+// mappings are absolute, and Env includes the built-in denylist.
 type ResolvedAlias struct {
-	Name            string                  `yaml:"-"`
 	ShimMode        string                  `yaml:"shim_mode"`
 	Service         string                  `yaml:"service,omitempty"`
 	Container       string                  `yaml:"container,omitempty"`
@@ -48,15 +51,19 @@ type ResolvedAlias struct {
 	PathTranslation ResolvedPathTranslation `yaml:"path_translation"`
 }
 
+// ResolvedPathTranslation is path_translation with its defaults applied.
 type ResolvedPathTranslation struct {
 	Enabled bool `yaml:"enabled"`
-	// Exclude lists host paths never copied into the container.
-	Exclude   []string `yaml:"exclude"`
-	MaxCopyMB int      `yaml:"max_copy_mb"`
+	// Allow lists host directories whose files may be copied into the container,
+	// on top of the system temporary directories, which always are.
+	Allow []string `yaml:"allow"`
+	// FollowSymlinks lets a symlink inside an allowed directory point outside it.
+	FollowSymlinks bool `yaml:"follow_symlinks"`
+	MaxCopyMB      int  `yaml:"max_copy_mb"`
 }
 
-// Load parses, validates and resolves the config file, interpolating the process environment.
-func Load(file string) (*Project, error) {
+// Load parses, validates and resolves the config file, interpolating values with lookup.
+func Load(file string, lookup LookupFunc) (*Project, error) {
 	file, err := filepath.Abs(file)
 	if err != nil {
 		return nil, err
@@ -65,7 +72,7 @@ func Load(file string) (*Project, error) {
 	if err != nil {
 		return nil, err
 	}
-	f, err := Parse(data, os.LookupEnv)
+	f, err := Parse(data, lookup)
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", file, err)
 	}
@@ -75,6 +82,8 @@ func Load(file string) (*Project, error) {
 	return f.Resolve(file), nil
 }
 
+// Parse decodes a config file, rejecting unknown fields, then interpolates its values (not its
+// mapping keys) with lookup. It does not validate.
 func Parse(data []byte, lookup LookupFunc) (*File, error) {
 	// Node.Decode cannot reject unknown fields: check the raw document strictly first.
 	var f File
@@ -103,7 +112,7 @@ func Parse(data []byte, lookup LookupFunc) (*File, error) {
 
 // Resolve merges global settings into each alias and makes paths absolute.
 func (f *File) Resolve(file string) *Project {
-	root := realPath(RootOf(file))
+	root := hostpath.Real(RootOf(file))
 	p := &Project{
 		Root:    root,
 		File:    file,
@@ -120,7 +129,6 @@ func (f *File) Resolve(file string) *Project {
 
 	for name, a := range f.Aliases {
 		r := &ResolvedAlias{
-			Name:      name,
 			ShimMode:  string(cmp.Or(a.ShimMode, f.Global.ShimMode, ShimSymlink)),
 			Service:   a.Service,
 			Container: a.Container,
@@ -132,8 +140,10 @@ func (f *File) Resolve(file string) *Project {
 			},
 			Vars: map[string]string{},
 			PathTranslation: ResolvedPathTranslation{
-				Enabled:   cmp.Or(a.PathTranslation.Enabled, f.Global.PathTranslation.Enabled, "true").Bool(),
-				Exclude:   concat(pathmap.DefaultCopyExclude, f.Global.PathTranslation.Exclude, a.PathTranslation.Exclude),
+				Enabled: cmp.Or(a.PathTranslation.Enabled, f.Global.PathTranslation.Enabled, "true").Bool(),
+				Allow:   cleanAll(concat(f.Global.PathTranslation.Allow, a.PathTranslation.Allow)),
+				FollowSymlinks: cmp.Or(a.PathTranslation.FollowSymlinks,
+					f.Global.PathTranslation.FollowSymlinks, "false").Bool(),
 				MaxCopyMB: cmp.Or(a.PathTranslation.MaxCopyMB, f.Global.PathTranslation.MaxCopyMB).Int(DefaultMaxCopyMB),
 			},
 		}
@@ -167,12 +177,15 @@ func absFrom(root, p string) string {
 	return filepath.Join(root, p)
 }
 
-// realPath resolves symlinks so paths compare equal to os.Getwd results.
-func realPath(p string) string {
-	if r, err := filepath.EvalSymlinks(p); err == nil {
-		return r
+// cleanAll normalises configured host paths so prefix comparisons work.
+// Windows paths are left alone: hostpath converts them.
+func cleanAll(paths []string) []string {
+	for i, p := range paths {
+		if filepath.IsAbs(p) {
+			paths[i] = filepath.Clean(p)
+		}
 	}
-	return p
+	return paths
 }
 
 func concat(lists ...[]string) []string {

@@ -9,18 +9,16 @@ import (
 
 	"github.com/squrious/dockshim/internal/config"
 	"github.com/squrious/dockshim/internal/docker"
+	"github.com/squrious/dockshim/internal/hostpath"
 )
 
 // Step is a side action run around the command (e.g. copying files in and cleaning them up).
 type Step func() error
 
-// ArgTransformer rewrites the command arguments, possibly registering steps on the plan.
-type ArgTransformer interface {
-	Transform(p *Plan, args []string) ([]string, error)
-}
-
+// Plan is everything needed to run one alias invocation.
 type Plan struct {
 	Target docker.Target
+	Runner docker.Runner
 	Args   []string // docker CLI arguments
 	Env    []string // environment of the docker process
 	// PreRun steps run before the command; PostRun steps always run after it, in reverse order.
@@ -28,39 +26,37 @@ type Plan struct {
 	PostRun []Step
 }
 
+// Input describes one alias invocation.
 type Input struct {
-	Project      *config.Project
-	Alias        *config.ResolvedAlias
-	Runner       docker.Runner
-	Cwd          string // real path
-	Environ      []string
-	Args         []string
-	TTY          bool
-	Transformers []ArgTransformer
-	Stderr       io.Writer // warnings
+	Project *config.Project
+	Alias   *config.ResolvedAlias
+	Runner  docker.Runner
+	Cwd     string // real path
+	Environ []string
+	// Args is the command line to run in the container. Args[0], the command name, is never translated.
+	Args   []string
+	TTY    bool
+	Stderr io.Writer // warnings
+	// HostPaths decides what a host path means on this machine. Detected when nil and needed.
+	HostPaths *hostpath.Resolver
 }
 
+// Build computes the docker exec call for in: host paths in the arguments are translated,
+// forwarded variables and alias vars are passed by name, and the working directory is mapped.
 func Build(in Input) (*Plan, error) {
-	p := &Plan{Target: NewTarget(in.Project, in.Alias, in.Runner)}
-
-	transformers := in.Transformers
-	if in.Alias.PathTranslation.Enabled {
-		warn := func(format string, args ...any) {
-			if in.Stderr != nil {
-				_, _ = fmt.Fprintf(in.Stderr, "dockshim: warning: "+format+"\n", args...)
-			}
-		}
-		transformers = append([]ArgTransformer{newPathTranslator(in, warn)}, transformers...)
-	}
+	p := &Plan{Target: NewTarget(in.Project, in.Alias, in.Runner), Runner: in.Runner}
+	workdir, _ := in.Alias.PathMapping.ToContainer(in.Cwd)
 
 	args := in.Args
-	for _, t := range transformers {
-		var err error
-		if args, err = t.Transform(p, args); err != nil {
-			return nil, err
+	if in.Alias.PathTranslation.Enabled {
+		if in.HostPaths == nil {
+			in.HostPaths = hostpath.Detect(hostOptions(in.Alias))
 		}
+		warn := func(format string, args ...any) { warnf(in.Stderr, format, args...) }
+		args = newPathTranslator(in, workdir, warn).transform(p, args)
 	}
 
+	// Vars are appended after the inherited environment: for duplicate keys, os/exec keeps the last.
 	env := slices.Clone(in.Environ)
 	names := in.Alias.Env.Names(in.Environ)
 	for _, k := range slices.Sorted(maps.Keys(in.Alias.Vars)) {
@@ -71,7 +67,6 @@ func Build(in Input) (*Plan, error) {
 	}
 	p.Env = env
 
-	workdir, _ := in.Alias.PathMapping.ToContainer(in.Cwd)
 	p.Args = p.Target.ExecArgs(docker.ExecOptions{
 		TTY:     in.TTY,
 		User:    in.Alias.User,
@@ -81,6 +76,7 @@ func Build(in Input) (*Plan, error) {
 	return p, nil
 }
 
+// NewTarget returns the compose service or the container an alias runs in.
 func NewTarget(p *config.Project, a *config.ResolvedAlias, r docker.Runner) docker.Target {
 	if a.Service != "" {
 		c := &docker.Compose{Runner: r, ProjectDir: p.Root, Service: a.Service}
@@ -92,6 +88,7 @@ func NewTarget(p *config.Project, a *config.ResolvedAlias, r docker.Runner) dock
 	return &docker.Container{Runner: r, ProjectDir: p.Root, Name: a.Container}
 }
 
+// Stdio are the streams given to the command. Err also receives dockshim warnings.
 type Stdio struct {
 	In       io.Reader
 	Out, Err io.Writer
@@ -100,16 +97,16 @@ type Stdio struct {
 // Execute starts the target if needed, runs the command and returns its exit code.
 // When the command fails with 1 because the target went down meanwhile, it is started again,
 // PreRun steps replayed and the command retried once. PostRun failures are only warnings.
-func Execute(p *Plan, r docker.Runner, stdio Stdio) (int, error) {
+func Execute(p *Plan, stdio Stdio) (int, error) {
 	defer func() {
 		for _, step := range slices.Backward(p.PostRun) {
-			if err := step(); err != nil && stdio.Err != nil {
-				_, _ = fmt.Fprintf(stdio.Err, "dockshim: warning: %v\n", err)
+			if err := step(); err != nil {
+				warnf(stdio.Err, "%v", err)
 			}
 		}
 	}()
 	start := func(verb string) error {
-		if err := p.Target.EnsureUp(stdio.Err); err != nil {
+		if err := p.Target.EnsureUp(p.Env, stdio.Err); err != nil {
 			return fmt.Errorf("%s %s: %w", verb, p.Target, err)
 		}
 		return runSteps(p.PreRun)
@@ -124,14 +121,14 @@ func Execute(p *Plan, r docker.Runner, stdio Stdio) (int, error) {
 	}
 
 	cmd := docker.Cmd{Dir: p.Target.Dir(), Args: p.Args, Env: p.Env, Stdin: stdio.In, Stdout: stdio.Out, Stderr: stdio.Err}
-	code, err := r.Run(cmd)
+	code, err := p.Runner.Run(cmd)
 	if err != nil || code != 1 || p.Target.IsRunning() {
 		return code, err
 	}
 	if err := start("restarting"); err != nil {
 		return 1, err
 	}
-	return r.Run(cmd)
+	return p.Runner.Run(cmd)
 }
 
 func runSteps(steps []Step) error {
@@ -141,4 +138,10 @@ func runSteps(steps []Step) error {
 		}
 	}
 	return nil
+}
+
+func warnf(w io.Writer, format string, args ...any) {
+	if w != nil {
+		_, _ = fmt.Fprintf(w, config.ToolName+": warning: "+format+"\n", args...)
+	}
 }

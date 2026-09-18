@@ -1,6 +1,6 @@
 # 7. Path translation
 
-Status: accepted (2026-09-17)
+Status: accepted (2026-09-17), amended by [0008](0008-allowed-copy-paths-and-windows-paths.md)
 
 ## Principle
 A shim must behave like a host command, so **every path in an argument is a host path**. The only exceptions are paths that cannot be copied and whose container version means the same thing.
@@ -11,9 +11,9 @@ Each argument after the command name is checked. For `-x=value` / `--opt=value` 
 | Resolved argument | Result |
 |---|---|
 | Under a `path_mapping`, existing or not | Rewritten to its container path |
-| Under `/dev`, `/proc`, `/sys`, or a configured `exclude` | Unchanged, silently |
 | Missing | Unchanged, silently (usually an output path) |
-| Readable regular file within the size cap | Copied, and the argument points at the copy |
+| Readable regular file within the size cap, in an allowed directory (0008) | Copied, and the argument points at the copy |
+| Anywhere else | Unchanged, silently: it means the container's own path |
 | Directory, socket, device, FIFO, unreadable, or over the cap | Unchanged, with a warning |
 
 **Working directory and relative paths.** `-w` already puts the container in the directory matching the host cwd, so a relative argument is kept **as typed** whenever that mapping resolves it to the same file. It is rewritten when it doesn't: when the cwd is not mapped, or when the path falls under a *different* mapping (`assets: /assets/build` while `.` maps to `/app`).
@@ -31,10 +31,10 @@ Each argument after the command name is checked. For `-x=value` / `--opt=value` 
 
 **Cleanup.** `docker exec --user 0 <id> rm -rf /tmp/dockshim-<random>` runs after the command, on success or failure. A failure there is only a warning. On a retry, the copy is redone.
 
-**Configuration.** `path_translation: {enabled, exclude, max_copy_mb}`, globally or per alias. `enabled` and `max_copy_mb` are overridden by the alias, `exclude` is appended. Enabled by default.
+**Configuration.** `path_translation: {enabled, allow, follow_symlinks, max_copy_mb}` (0008), globally or per alias. Scalars are overridden by the alias, `allow` is appended. Enabled by default.
 
 ## Consequences / limits
 - Copies are one-way. A tool that rewrites a copied file in place (a fixer, `sed -i`) loses its changes; only the warning-free copy hints at it. Copying back could become an option.
-- When a path can't be copied, the argument falls back to meaning the container's path. The warning makes that visible. `exclude` turns it into the deliberate choice, for paths that should always mean the container's (e.g. `/usr/local/etc/php`).
-- An argument that happens to name an existing host file is copied even if the tool doesn't treat it as a path. The size cap limits the cost, and `enabled: false` turns the feature off.
+- When a path can't be copied, the argument falls back to meaning the container's path.
+- An argument that happens to name an existing host file in an allowed directory is copied even if the tool doesn't treat it as a path. The size cap limits the cost, and `enabled: false` turns the feature off.
 - Cleanup needs `rm` in the container.

@@ -22,6 +22,9 @@ stdout '^cmd php -r echo 1;$'
 # The service was down, so it has been started.
 grep '^compose ps --status running --quiet tools$' $FAKE_DOCKER_STATE/calls
 grep '^compose up --detach tools$' $FAKE_DOCKER_STATE/calls
+# With the same environment as exec, alias vars included, so compose interpolates the project identically.
+grep '^APP_ENV=test$' $FAKE_DOCKER_STATE/up-env
+grep '^COMPOSE_PROGRESS=quiet$' $FAKE_DOCKER_STATE/up-env
 
 # Longest mapping wins.
 cd $WORK/assets/css

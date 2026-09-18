@@ -1,6 +1,7 @@
 package execplan
 
 import (
+	"bytes"
 	"errors"
 	"io"
 	"slices"
@@ -15,7 +16,6 @@ import (
 
 func alias() *config.ResolvedAlias {
 	return &config.ResolvedAlias{
-		Name:        "php",
 		Service:     "tools",
 		User:        "1000:1000",
 		PathMapping: pathmap.Map{{Host: "/proj", Container: "/app"}},
@@ -47,45 +47,31 @@ func TestBuild(t *testing.T) {
 	}
 
 	in.Cwd = "/elsewhere"
-	p, _ = Build(in)
+	if p, err = Build(in); err != nil {
+		t.Fatal(err)
+	}
 	if slices.Contains(p.Args, "--workdir") {
 		t.Fatalf("no workdir expected outside mappings: %q", p.Args)
 	}
-
-	in.Alias.Service, in.Alias.Container = "", "ctr"
-	p, _ = Build(in)
-	if p.Args[0] != "exec" || !slices.Contains(p.Args, "ctr") {
-		t.Fatalf("container args = %q", p.Args)
-	}
 }
 
-type prefixTransformer string
-
-func (pt prefixTransformer) Transform(p *Plan, args []string) ([]string, error) {
-	p.PostRun = append(p.PostRun, func() error { return nil })
-	return append([]string{string(pt)}, args...), nil
-}
-
-func TestBuildTransformers(t *testing.T) {
-	p, err := Build(Input{
-		Project:      &config.Project{Root: "/proj"},
-		Alias:        alias(),
-		Args:         []string{"php"},
-		Transformers: []ArgTransformer{prefixTransformer("env")},
-	})
-	if err != nil {
-		t.Fatal(err)
+func TestNewTarget(t *testing.T) {
+	proj := &config.Project{Root: "/proj", Compose: &config.Compose{Files: []string{"/proj/c.yaml"}, ProjectName: "p"}}
+	a := alias()
+	if c, ok := NewTarget(proj, a, nil).(*docker.Compose); !ok || c.Service != "tools" || c.ProjectName != "p" || c.ProjectDir != "/proj" {
+		t.Fatalf("compose target = %+v", c)
 	}
-	if !slices.Equal(p.Args[len(p.Args)-2:], []string{"env", "php"}) || len(p.PostRun) != 1 {
-		t.Fatalf("plan = %+v", p)
+	a.Service, a.Container = "", "ctr"
+	if c, ok := NewTarget(proj, a, nil).(*docker.Container); !ok || c.Name != "ctr" || c.ProjectDir != "/proj" {
+		t.Fatalf("container target = %+v", c)
 	}
 }
 
 // fakeTarget has a scripted running state; each IsRunning call pops the next value.
 type fakeTarget struct {
 	running []bool
-	ups     int
 	upErr   error
+	upEnv   []string
 	log     *[]string
 }
 
@@ -99,9 +85,9 @@ func (f *fakeTarget) IsRunning() bool {
 	}
 	return r
 }
-func (f *fakeTarget) EnsureUp(io.Writer) error {
+func (f *fakeTarget) EnsureUp(env []string, _ io.Writer) error {
 	*f.log = append(*f.log, "up")
-	f.ups++
+	f.upEnv = env
 	return f.upErr
 }
 func (f *fakeTarget) ExecArgs(docker.ExecOptions, []string) []string { return nil }
@@ -120,31 +106,35 @@ func (f *fakeRunner) Run(docker.Cmd) (int, error) {
 }
 
 func TestExecute(t *testing.T) {
+	boom := errors.New("boom")
 	tests := []struct {
 		name    string
 		running []bool
 		codes   []int
 		upErr   error
+		preErr  error
 		want    int
 		wantErr bool
 		log     string
 	}{
-		{"running", []bool{true}, []int{0}, nil, 0, false, "running? pre exec post"},
-		{"starts when down", []bool{false, true}, []int{0}, nil, 0, false, "running? up pre exec post"},
-		{"exit code kept", []bool{true}, []int{42}, nil, 42, false, "running? pre exec post"},
-		{"exit 1 while still running", []bool{true}, []int{1}, nil, 1, false, "running? pre exec running? post"},
-		{"retries once when stopped meanwhile", []bool{true, false}, []int{1, 1}, nil, 1, false, "running? pre exec running? up pre exec post"},
-		{"start failure", []bool{false}, nil, errors.New("boom"), 1, true, "running? up post"},
+		{name: "running", running: []bool{true}, codes: []int{0}, log: "running? pre exec post"},
+		{name: "starts when down", running: []bool{false, true}, codes: []int{0}, log: "running? up pre exec post"},
+		{name: "exit code kept", running: []bool{true}, codes: []int{42}, want: 42, log: "running? pre exec post"},
+		{name: "exit 1 while still running", running: []bool{true}, codes: []int{1}, want: 1, log: "running? pre exec running? post"},
+		{name: "retries once when stopped meanwhile", running: []bool{true, false}, codes: []int{1, 1}, want: 1, log: "running? pre exec running? up pre exec post"},
+		{name: "start failure", running: []bool{false}, upErr: boom, want: 1, wantErr: true, log: "running? up post"},
+		{name: "pre-run failure", running: []bool{true}, preErr: boom, want: 1, wantErr: true, log: "running? pre post"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var log []string
 			p := &Plan{
 				Target:  &fakeTarget{running: tt.running, upErr: tt.upErr, log: &log},
-				PreRun:  []Step{func() error { log = append(log, "pre"); return nil }},
+				Runner:  &fakeRunner{codes: tt.codes, log: &log},
+				PreRun:  []Step{func() error { log = append(log, "pre"); return tt.preErr }},
 				PostRun: []Step{func() error { log = append(log, "post"); return nil }},
 			}
-			code, err := Execute(p, &fakeRunner{codes: tt.codes, log: &log}, Stdio{})
+			code, err := Execute(p, Stdio{})
 			if code != tt.want || (err != nil) != tt.wantErr {
 				t.Fatalf("code=%d err=%v", code, err)
 			}
@@ -152,5 +142,34 @@ func TestExecute(t *testing.T) {
 				t.Fatalf("log = %q, want %q", got, tt.log)
 			}
 		})
+	}
+}
+
+// Starting sees the same environment as the command, so compose interpolates the project identically.
+func TestExecuteStartsWithPlanEnv(t *testing.T) {
+	var log []string
+	target := &fakeTarget{running: []bool{false, true}, log: &log}
+	p := &Plan{Target: target, Runner: &fakeRunner{codes: []int{0}, log: &log}, Env: []string{"APP_ENV=dev"}}
+	if _, err := Execute(p, Stdio{}); err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(target.upEnv, p.Env) {
+		t.Fatalf("up env = %q", target.upEnv)
+	}
+}
+
+func TestExecutePostRunFailureWarns(t *testing.T) {
+	var log []string
+	var stderr bytes.Buffer
+	p := &Plan{
+		Target:  &fakeTarget{running: []bool{true}, log: &log},
+		Runner:  &fakeRunner{codes: []int{0}, log: &log},
+		PostRun: []Step{func() error { return errors.New("cleanup failed") }},
+	}
+	if code, err := Execute(p, Stdio{Err: &stderr}); code != 0 || err != nil {
+		t.Fatalf("code=%d err=%v", code, err)
+	}
+	if stderr.String() != "dockshim: warning: cleanup failed\n" {
+		t.Fatalf("stderr = %q", stderr.String())
 	}
 }

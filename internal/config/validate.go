@@ -11,10 +11,10 @@ import (
 	"strings"
 
 	"github.com/squrious/dockshim/internal/envfilter"
+	"github.com/squrious/dockshim/internal/hostpath"
 )
 
-const ToolName = "dockshim"
-
+// ValidationError lists every problem found in a config file, each prefixed with its field path.
 type ValidationError struct {
 	Problems []string
 }
@@ -28,6 +28,8 @@ var (
 	userRe      = regexp.MustCompile(`^[A-Za-z0-9_][A-Za-z0-9_.-]*(:[A-Za-z0-9_][A-Za-z0-9_.-]*)?$`)
 )
 
+// Validate checks the file as written, before interpolated values are resolved into a Project.
+// It reports all problems at once, as a *ValidationError.
 func (f *File) Validate() error {
 	var problems []string
 	add := func(field, format string, args ...any) {
@@ -128,14 +130,19 @@ func validatePathTranslation(add func(string, string, ...any), field string, pt 
 			add(field+".enabled", "invalid boolean %q", pt.Enabled)
 		}
 	}
+	if pt.FollowSymlinks != "" {
+		if _, err := strconv.ParseBool(string(pt.FollowSymlinks)); err != nil {
+			add(field+".follow_symlinks", "invalid boolean %q", pt.FollowSymlinks)
+		}
+	}
 	if pt.MaxCopyMB != "" {
 		if n, err := strconv.Atoi(string(pt.MaxCopyMB)); err != nil || n <= 0 {
 			add(field+".max_copy_mb", "must be a positive integer, got %q", pt.MaxCopyMB)
 		}
 	}
-	for i, p := range pt.Exclude {
-		if !filepath.IsAbs(p) {
-			add(fmt.Sprintf("%s.exclude[%d]", field, i), "host path %q must be absolute", p)
+	for i, p := range pt.Allow {
+		if !filepath.IsAbs(p) && !hostpath.IsWindows(p) {
+			add(fmt.Sprintf("%s.allow[%d]", field, i), "host path %q must be absolute", p)
 		}
 	}
 }

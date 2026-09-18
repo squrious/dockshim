@@ -1,8 +1,5 @@
 version: "2"
 run:
   build-tags: [integration]
-linters:
-  exclusions:
-    rules:
-      - path: _test\.go
-        linters: [errcheck]
+formatters:
+  enable: [gofmt]

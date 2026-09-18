@@ -7,12 +7,13 @@ import (
 	"strings"
 )
 
-// CopyArchive extracts a tar stream into dest in the container, keeping the archive's uid/gid.
+// CopyArchive extracts a tar stream into dest in container id, keeping the archive's uid/gid.
+// dir is the directory docker runs from, as for every call on a target.
 func CopyArchive(r Runner, dir, id, dest string, archive io.Reader) error {
 	return runCapturing(r, Cmd{Dir: dir, Args: []string{"cp", "--archive", "-", id + ":" + dest}, Stdin: archive})
 }
 
-// RemoveAll deletes path in the container, as root.
+// RemoveAll deletes path in container id, as root.
 func RemoveAll(r Runner, dir, id, path string) error {
 	return runCapturing(r, Cmd{Dir: dir, Args: []string{"exec", "--user", "0", id, "rm", "-rf", path}})
 }

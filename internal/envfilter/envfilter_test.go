@@ -2,7 +2,6 @@ package envfilter
 
 import (
 	"slices"
-	"strings"
 	"testing"
 )
 
@@ -10,11 +9,6 @@ func TestDefaultsDoNotDenyMise(t *testing.T) {
 	r := Rules{Deny: DefaultDeny, DenyPrefixes: DefaultDenyPrefixes}
 	if r.Denied("MISE_ENV") {
 		t.Fatal("MISE_ vars must not be denied by default")
-	}
-	for _, p := range DefaultDenyPrefixes {
-		if strings.HasPrefix("MISE_", p) {
-			t.Fatalf("unexpected default prefix %q", p)
-		}
 	}
 }
 

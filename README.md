@@ -59,16 +59,25 @@ aliases:
 
 Arguments name host paths, and dockshim makes them usable in the container:
 - **Paths under a `path_mapping`** are rewritten: `/home/me/proj/src/a.php` becomes `/app/src/a.php`. Relative paths are kept as typed when the working directory already resolves them.
-- **Other existing files** are copied into `/tmp/dockshim-<random>/` in the container for the duration of the command, then removed. Changes made to a copy are not brought back.
-- **Directories are not copied**, and neither are `/dev`, `/proc` and `/sys`. Such an argument keeps its value, so it designates the container's own path. Except for the virtual filesystems, dockshim warns when this happens.
+- **Files in an allowed directory** are copied into `/tmp/dockshim-<random>/` in the container for the duration of the command, then removed. Changes made to a copy are not brought back. Allowed are the system temporary directories and whatever `allow` adds: copying exists for the throwaway files a tool hands a command, such as an IDE test runner script.
+- **Anything else** keeps its value, so it designates the container's own path. That is the ordinary case, and it is silent. Directories are never copied, and dockshim warns when a path in an allowed directory cannot be copied: a directory, an unreadable file, or one over the cap.
 
 ```yaml
 global:
   path_translation:
     enabled: true               # default
-    exclude: [/usr/local/etc]   # paths that should mean the container's own
+    allow: [/srv/fixtures]      # extra directories whose files may be copied
+    follow_symlinks: false      # default; true lets a link in an allowed directory point out of it
     max_copy_mb: 100            # default; larger files are left untouched
 ```
+
+Set `allow: ["/"]` to copy from anywhere.
+
+#### Windows paths (WSL)
+
+A Windows tool driving a shim inside WSL passes Windows paths — PhpStorm running a test gives `C:/Users/me/AppData/Local/Temp/ide-phpunit.php` and `\\wsl.localhost\Ubuntu\home\me\proj\tests`, sometimes spelled `//wsl.localhost/Ubuntu/home/me/proj/tests` in the same command line. dockshim reads both: a mounted drive becomes its mount point (`/mnt/c/...`), and a path in this distribution becomes its plain Linux path, which then translates like any other. Windows temporary directories are allowed like the Linux ones, so the runner script above is copied and the test directory is rewritten through `path_mapping`.
+
+A Windows path this distribution cannot reach — an unmounted drive, another distribution, a network share — is left as typed, with a warning.
 
 ### Environment variables
 

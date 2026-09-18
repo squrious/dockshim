@@ -18,7 +18,7 @@ const marker = "# " + config.ToolName + " shim"
 // Shim is one alias entry point to create.
 type Shim struct {
 	Name string
-	Mode string
+	Mode string // config.ShimSymlink or config.ShimWrapper; empty means symlink
 }
 
 // IsShim reports whether path is one of our entry points: a symlink to exe or to any file
@@ -84,13 +84,16 @@ func shellQuote(s string) string {
 	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
 }
 
+// Result reports what Install changed, by alias name.
 type Result struct {
 	Created []string
 	Removed []string
 	Skipped []string // existing files that are not shims
 }
 
-// Install makes dir contain exactly one entry point per shim, in its configured mode.
+// Install makes dir contain exactly one entry point per shim, in its configured mode, pointing at exe.
+// Entry points of aliases no longer listed are removed; files that are not shims are never touched.
+// On error, the Result still lists what was done before it.
 func Install(dir, exe string, shims []Shim) (Result, error) {
 	var res Result
 	if err := os.MkdirAll(dir, 0o755); err != nil {

@@ -3,7 +3,6 @@ package execplan
 import (
 	"archive/tar"
 	"crypto/rand"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -14,24 +13,26 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/squrious/dockshim/internal/config"
 	"github.com/squrious/dockshim/internal/docker"
+	"github.com/squrious/dockshim/internal/hostpath"
 	"github.com/squrious/dockshim/internal/pathmap"
 )
 
 const containerTmp = "/tmp"
 
 // pathTranslator makes host paths given as arguments usable in the container.
-// Paths under a mapping are rewritten to their container path. Other existing files are
-// copied into a temporary container directory for the duration of the command.
+// Paths under a mapping are rewritten to their container path. Files inside an allowed
+// directory are copied into a temporary container directory for the duration of the
+// command. Anything else keeps its value, and so means the container's own path.
 type pathTranslator struct {
 	mappings pathmap.Map
 	cwd      string
 	// cwdContainer is the container working directory, empty when the cwd is not mapped.
 	cwdContainer string
-	exclude      []string
+	host         *hostpath.Resolver
 	maxBytes     int64
 	uid, gid     int // -1 when unknown
-	runner       docker.Runner
 	warn         func(format string, args ...any)
 }
 
@@ -40,26 +41,33 @@ type copyItem struct {
 	name string // path inside the temporary directory
 }
 
-func newPathTranslator(in Input, warn func(string, ...any)) *pathTranslator {
-	cwdContainer, _ := in.Alias.PathMapping.ToContainer(in.Cwd)
+// hostOptions is the host path policy an alias configures.
+func hostOptions(a *config.ResolvedAlias) hostpath.Options {
+	return hostpath.Options{
+		Allow:          a.PathTranslation.Allow,
+		FollowSymlinks: a.PathTranslation.FollowSymlinks,
+	}
+}
+
+func newPathTranslator(in Input, cwdContainer string, warn func(string, ...any)) *pathTranslator {
 	uid, gid := numericUser(in.Alias.User)
 	pt := in.Alias.PathTranslation
 	return &pathTranslator{
 		mappings:     in.Alias.PathMapping,
 		cwd:          in.Cwd,
 		cwdContainer: cwdContainer,
-		exclude:      pt.Exclude,
+		host:         in.HostPaths,
 		maxBytes:     int64(pt.MaxCopyMB) << 20,
 		uid:          uid,
 		gid:          gid,
-		runner:       in.Runner,
 		warn:         warn,
 	}
 }
 
-func (t *pathTranslator) Transform(p *Plan, args []string) ([]string, error) {
+// transform returns args with host paths translated, and registers on p the steps copying files in and out.
+func (t *pathTranslator) transform(p *Plan, args []string) []string {
 	out := slices.Clone(args)
-	base := "dockshim-" + randomHex()
+	base := config.ToolName + "-" + rand.Text()
 	copies := map[string]string{}
 	var items []copyItem
 	var total int64
@@ -77,11 +85,10 @@ func (t *pathTranslator) Transform(p *Plan, args []string) ([]string, error) {
 				size, err := copyableSize(tr.copyFrom, t.maxBytes-total)
 				if err != nil {
 					t.warn("not copying %s into the container: %v", value, err)
-					out[i] = args[i]
 					continue
 				}
 				total += size
-				item := copyItem{host: tr.copyFrom, name: path.Join(strconv.Itoa(len(items)), filepath.Base(value))}
+				item := copyItem{host: tr.copyFrom, name: path.Join(strconv.Itoa(len(items)), tr.name)}
 				items = append(items, item)
 				ctr = path.Join(containerTmp, base, item.name)
 				copies[tr.copyFrom] = ctr
@@ -94,14 +101,15 @@ func (t *pathTranslator) Transform(p *Plan, args []string) ([]string, error) {
 	if len(items) > 0 {
 		t.registerSteps(p, base, items)
 	}
-	return out, nil
+	return out
 }
 
-// translation is what becomes of one argument: a value to use, a host file to copy first,
-// and a reason why a path could not be copied.
+// translation is what becomes of one argument: a value to use, a host file to copy first
+// under the name the argument gave it, and a reason why a path could not be copied.
 type translation struct {
 	value    string
 	copyFrom string
+	name     string
 	warn     string
 }
 
@@ -109,32 +117,43 @@ func (t *pathTranslator) translate(value string) translation {
 	if value == "" || value == "-" {
 		return translation{value: value}
 	}
-	isAbs := filepath.IsAbs(value)
-	abs := value
+	// A Windows path names a file the container has no chance of finding as typed,
+	// so it is worth reporting when it cannot be translated.
+	win := hostpath.IsWindows(value)
+	lookup := value
+	if win {
+		converted, ok := t.host.ToLinux(value)
+		if !ok {
+			return translation{value: value, warn: "is a Windows path this distribution cannot reach"}
+		}
+		lookup = converted
+	}
+	isAbs := filepath.IsAbs(lookup)
+	abs := lookup
 	if !isAbs {
-		abs = filepath.Join(t.cwd, value)
+		abs = filepath.Join(t.cwd, lookup)
 	}
 	abs = filepath.Clean(abs)
 
-	for _, candidate := range []string{abs, realPath(abs)} {
+	for _, candidate := range []string{abs, hostpath.Real(abs)} {
 		ctr, ok := t.mappings.ToContainer(candidate)
 		if !ok {
 			continue
 		}
 		// A relative path needs nothing when the working directory already resolves it there.
-		if !isAbs && t.cwdContainer != "" && path.Join(t.cwdContainer, filepath.ToSlash(value)) == ctr {
+		if !isAbs && t.cwdContainer != "" && path.Join(t.cwdContainer, filepath.ToSlash(lookup)) == ctr {
 			return translation{value: value}
 		}
 		return translation{value: ctr}
 	}
 
-	if t.excluded(abs) {
-		return translation{value: value}
-	}
 	// Missing paths are left alone: they are usually outputs.
 	real, err := filepath.EvalSymlinks(abs)
 	if err != nil {
-		return translation{value: value}
+		return untranslated(value, win)
+	}
+	if !t.host.Allowed(abs, real) {
+		return untranslated(value, win)
 	}
 	fi, err := os.Stat(real)
 	switch {
@@ -145,16 +164,21 @@ func (t *pathTranslator) translate(value string) translation {
 	case !fi.Mode().IsRegular():
 		return translation{value: value, warn: "is not a regular file"}
 	}
-	return translation{value: value, copyFrom: real}
+	return translation{value: value, copyFrom: real, name: filepath.Base(abs)}
 }
 
-// excluded reports whether p is a virtual filesystem or was excluded by configuration.
-func (t *pathTranslator) excluded(p string) bool {
-	return slices.ContainsFunc(t.exclude, func(e string) bool { return pathmap.Within(e, p) })
+// untranslated keeps the argument as typed, so it designates the container's own path.
+// That is the ordinary outcome and stays silent, unless the argument was a Windows path.
+func untranslated(value string, win bool) translation {
+	t := translation{value: value}
+	if win {
+		t.warn = "is outside the allowed paths, see path_translation.allow"
+	}
+	return t
 }
 
 func (t *pathTranslator) registerSteps(p *Plan, base string, items []copyItem) {
-	target := p.Target
+	target, runner := p.Target, p.Runner
 	var id string
 	p.PreRun = append(p.PreRun, func() error {
 		var err error
@@ -168,7 +192,7 @@ func (t *pathTranslator) registerSteps(p *Plan, base string, items []copyItem) {
 			_ = pw.CloseWithError(err)
 			written <- err
 		}()
-		err = docker.CopyArchive(t.runner, target.Dir(), id, containerTmp, pr)
+		err = docker.CopyArchive(runner, target.Dir(), id, containerTmp, pr)
 		_ = pr.Close()
 		if werr := <-written; werr != nil && !errors.Is(werr, io.ErrClosedPipe) {
 			return fmt.Errorf("copying files into the container: %w", werr)
@@ -179,7 +203,7 @@ func (t *pathTranslator) registerSteps(p *Plan, base string, items []copyItem) {
 		if id == "" {
 			return nil
 		}
-		return docker.RemoveAll(t.runner, target.Dir(), id, path.Join(containerTmp, base))
+		return docker.RemoveAll(runner, target.Dir(), id, path.Join(containerTmp, base))
 	})
 }
 
@@ -289,21 +313,4 @@ func numericUser(user string) (uid, gid int) {
 		return -1, -1
 	}
 	return uid, gid
-}
-
-// realPath resolves symlinks, also for a missing last element.
-func realPath(p string) string {
-	if r, err := filepath.EvalSymlinks(p); err == nil {
-		return r
-	}
-	if r, err := filepath.EvalSymlinks(filepath.Dir(p)); err == nil {
-		return filepath.Join(r, filepath.Base(p))
-	}
-	return p
-}
-
-func randomHex() string {
-	b := make([]byte, 8)
-	_, _ = rand.Read(b)
-	return hex.EncodeToString(b)
 }

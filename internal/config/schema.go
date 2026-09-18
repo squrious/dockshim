@@ -8,6 +8,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// File is a config file as written, after interpolation. Load turns it into a Project.
 type File struct {
 	BinDir  string           `yaml:"bin_dir"`
 	Compose *Compose         `yaml:"compose"`
@@ -15,11 +16,13 @@ type File struct {
 	Aliases map[string]Alias `yaml:"aliases"`
 }
 
+// Compose holds the options passed to every docker compose call. Files are relative to the project root.
 type Compose struct {
 	Files       []string `yaml:"files"`
 	ProjectName string   `yaml:"project_name"`
 }
 
+// Global holds the defaults every alias inherits.
 type Global struct {
 	ShimMode        Scalar          `yaml:"shim_mode"`
 	User            Scalar          `yaml:"user"`
@@ -27,12 +30,15 @@ type Global struct {
 	PathTranslation PathTranslation `yaml:"path_translation"`
 }
 
+// PathTranslation configures how host paths given as arguments are made usable in the container.
 type PathTranslation struct {
-	Enabled   Scalar   `yaml:"enabled"`
-	Exclude   []string `yaml:"exclude"`
-	MaxCopyMB Scalar   `yaml:"max_copy_mb"`
+	Enabled        Scalar   `yaml:"enabled"`
+	Allow          []string `yaml:"allow"`
+	FollowSymlinks Scalar   `yaml:"follow_symlinks"`
+	MaxCopyMB      Scalar   `yaml:"max_copy_mb"`
 }
 
+// Env configures which host variables are forwarded, and which are set.
 type Env struct {
 	Deny         []string          `yaml:"deny"`
 	DenyPrefixes []string          `yaml:"deny_prefixes"`
@@ -40,6 +46,7 @@ type Env struct {
 	Vars         map[string]Scalar `yaml:"vars"`
 }
 
+// Alias is one entry point. Its settings override or extend Global.
 type Alias struct {
 	ShimMode        Scalar            `yaml:"shim_mode"`
 	Service         string            `yaml:"service"`
@@ -71,7 +78,7 @@ func (s Scalar) Bool() bool {
 	return b
 }
 
-// Int assumes a validated value, and returns def when empty.
+// Int assumes a validated value, and returns def when it is empty or not an integer.
 func (s Scalar) Int(def int) int {
 	if n, err := strconv.Atoi(string(s)); err == nil {
 		return n

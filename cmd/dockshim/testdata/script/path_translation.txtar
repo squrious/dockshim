@@ -1,13 +1,14 @@
 # Host paths in arguments are rewritten for the container, or copied into a temporary directory.
+# $WORK is itself inside the system temporary directory, which is allowed without configuration.
 cd proj
 exec dockshim install
 env PATH=$WORK/proj/.dockshim/bin${:}$PATH
 cd src
 
 exec php $WORK/proj/src/in.txt in.txt ../../outside/a.txt --opt=$WORK/outside/a.txt ../../outside/missing /dev/null -v
-stdout '^cmd php /app/src/in.txt in.txt /tmp/dockshim-[0-9a-f]{16}/0/a.txt --opt=/tmp/dockshim-[0-9a-f]{16}/0/a.txt ../../outside/missing /dev/null -v$'
+stdout '^cmd php /app/src/in.txt in.txt /tmp/dockshim-[A-Z2-7]{26}/0/a.txt --opt=/tmp/dockshim-[A-Z2-7]{26}/0/a.txt ../../outside/missing /dev/null -v$'
 grep '^cp --archive - abc123:/tmp$' $FAKE_DOCKER_STATE/calls
-grep '^exec --user 0 abc123 rm -rf /tmp/dockshim-[0-9a-f]{16}$' $FAKE_DOCKER_STATE/calls
+grep '^exec --user 0 abc123 rm -rf /tmp/dockshim-[A-Z2-7]{26}$' $FAKE_DOCKER_STATE/calls
 
 # Files are really copied, and removed afterwards.
 exec cat ../../outside/a.txt $WORK/outside/dir/b.txt
@@ -29,6 +30,48 @@ exec php $WORK/outside
 stdout '^cmd php '$WORK'/outside$'
 stderr 'warning: not copying '$WORK'/outside into the container: is a directory'
 
+# A file outside every allowed directory keeps its value, silently: it means the container's own.
+rm $FAKE_DOCKER_STATE/calls
+exec php /usr/bin/env
+stdout '^cmd php /usr/bin/env$'
+! stderr .
+! grep '^cp ' $FAKE_DOCKER_STATE/calls
+
+# Unless the directory is allowed explicitly.
+exec wide /usr/bin/env
+stdout '^cmd wide /tmp/dockshim-[A-Z2-7]{26}/0/env$'
+grep '^cp --archive - abc123:/tmp$' $FAKE_DOCKER_STATE/calls
+
+# A symlink may not leave an allowed directory, unless follow_symlinks says so.
+symlink $WORK/outside/escape.txt -> /usr/bin/env
+rm $FAKE_DOCKER_STATE/calls
+exec php $WORK/outside/escape.txt
+stdout '^cmd php '$WORK'/outside/escape.txt$'
+! grep '^cp ' $FAKE_DOCKER_STATE/calls
+exec links $WORK/outside/escape.txt
+stdout '^cmd links /tmp/dockshim-[A-Z2-7]{26}/0/escape.txt$'
+grep '^cp --archive - abc123:/tmp$' $FAKE_DOCKER_STATE/calls
+
+# Under WSL, a Windows path naming a file in this distribution is translated.
+env WSL_DISTRO_NAME=Ubuntu-24.04
+winpath UNC $WORK/proj/src/in.txt
+winpath UNCSLASH $WORK/proj/src/in.txt slash
+exec php $UNC $UNCSLASH
+stdout '^cmd php /app/src/in.txt /app/src/in.txt$'
+
+# One it cannot reach is reported, because leaving it as typed would certainly fail.
+exec php 'Z:\build\x.php'
+stdout '^cmd php Z:\\build\\x.php$'
+stderr 'warning: not copying Z:\\build\\x.php into the container: is a Windows path this distribution cannot reach'
+exec php '\\wsl.localhost\Debian\home\me\x.php' //wsl.localhost/Debian/home/me/x.php
+stderr 'is a Windows path this distribution cannot reach'
+
+# An ordinary path that merely starts with two slashes is not one.
+exec php //etc/hostname
+stdout '^cmd php //etc/hostname$'
+! stderr .
+env WSL_DISTRO_NAME=
+
 # Nothing is copied when nothing needs it, or when disabled.
 rm $FAKE_DOCKER_STATE/calls
 exec php in.txt
@@ -48,6 +91,14 @@ aliases:
     service: tools
     path_mapping: {.: /app}
     path_translation: {enabled: false}
+  wide:
+    service: tools
+    path_mapping: {.: /app}
+    path_translation: {allow: [/usr/bin]}
+  links:
+    service: tools
+    path_mapping: {.: /app}
+    path_translation: {follow_symlinks: true}
 -- proj/src/in.txt --
 in
 -- outside/a.txt --

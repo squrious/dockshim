@@ -46,8 +46,10 @@ func newInitCmd(e *Env) *cobra.Command {
 			}
 			for _, c := range config.Candidates {
 				existing := filepath.Join(root, c)
-				if _, err := os.Stat(existing); err != nil {
+				if _, err := os.Stat(existing); errors.Is(err, os.ErrNotExist) {
 					continue
+				} else if err != nil {
+					return err
 				}
 				switch {
 				case existing != target:
@@ -67,11 +69,14 @@ func newInitCmd(e *Env) *cobra.Command {
 
 			if !flat {
 				gitignore := filepath.Join(root, config.DirName, ".gitignore")
-				if _, err := os.Stat(gitignore); errors.Is(err, os.ErrNotExist) {
+				switch _, err := os.Stat(gitignore); {
+				case errors.Is(err, os.ErrNotExist):
 					if err := os.WriteFile(gitignore, []byte("/bin/\n"), 0o644); err != nil {
 						return err
 					}
 					cmd.Printf("created %s\n", gitignore)
+				case err != nil:
+					return err
 				}
 			}
 			cmd.Println("\nNext: declare aliases, then run `dockshim install`.")

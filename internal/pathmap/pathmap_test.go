@@ -32,3 +32,21 @@ func TestToContainer(t *testing.T) {
 		t.Error("empty map must not match")
 	}
 }
+
+func TestRel(t *testing.T) {
+	tests := []struct {
+		base, p, want string
+		ok            bool
+	}{
+		{"/a", "/a", ".", true},
+		{"/a", "/a/b/c", "b/c", true},
+		{"/a", "/a/..b", "..b", true},
+		{"/a", "/ab", "", false},
+		{"/a/b", "/a", "", false},
+	}
+	for _, tt := range tests {
+		if got, ok := Rel(tt.base, tt.p); got != tt.want || ok != tt.ok {
+			t.Errorf("Rel(%q, %q) = %q, %v; want %q, %v", tt.base, tt.p, got, ok, tt.want, tt.ok)
+		}
+	}
+}

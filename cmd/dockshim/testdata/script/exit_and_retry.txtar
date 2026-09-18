@@ -17,11 +17,12 @@ exec sh -c 'grep -c "up --detach" $FAKE_DOCKER_STATE/calls'
 stdout '^2$'
 
 # A command failing with 1 while the target keeps running is not retried.
+rm $FAKE_DOCKER_STATE/calls
 env FAKE_EXEC_EXIT=1
 exec sh -c 'php; echo code=$?'
 stdout '^code=1$'
 exec sh -c 'grep -c "exec" $FAKE_DOCKER_STATE/calls'
-stdout '^5$'
+stdout '^1$'
 
 # dockshim run behaves like the shim, and leaves flags to the aliased command.
 env FAKE_EXEC_EXIT=3

@@ -45,10 +45,14 @@ func runManager(args []string, e *Env) int {
 func newRoot(e *Env) *cobra.Command {
 	var configFile string
 	load := func(shimPath string) (*config.Project, error) {
-		if configFile == "" {
-			return e.discover(shimPath)
+		if configFile != "" {
+			return config.Load(configFile, config.LookupEnviron(e.Environ))
 		}
-		return config.Load(configFile)
+		cwd, err := e.cwd()
+		if err != nil {
+			return nil, err
+		}
+		return e.discover(cwd, shimPath)
 	}
 
 	root := &cobra.Command{

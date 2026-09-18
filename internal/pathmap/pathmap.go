@@ -7,10 +7,7 @@ import (
 	"strings"
 )
 
-// DefaultCopyExclude lists virtual filesystems: their files cannot be copied meaningfully,
-// and the container's own versions mean the same thing.
-var DefaultCopyExclude = []string{"/dev", "/proc", "/sys"}
-
+// Mapping makes the host directory Host visible at Container in the container.
 type Mapping struct {
 	Host      string `yaml:"host"`
 	Container string `yaml:"container"`
@@ -24,7 +21,7 @@ func (m Map) ToContainer(hostPath string) (string, bool) {
 	best := -1
 	var bestRel string
 	for i, mp := range m {
-		rel, ok := within(mp.Host, hostPath)
+		rel, ok := Rel(mp.Host, hostPath)
 		if !ok {
 			continue
 		}
@@ -38,8 +35,8 @@ func (m Map) ToContainer(hostPath string) (string, bool) {
 	return path.Join(m[best].Container, filepath.ToSlash(bestRel)), true
 }
 
-// within reports whether p is base or below it, and returns p relative to base.
-func within(base, p string) (string, bool) {
+// Rel returns p relative to base, when p is base or below it. Both must be absolute and cleaned.
+func Rel(base, p string) (string, bool) {
 	rel, err := filepath.Rel(base, p)
 	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
 		return "", false
@@ -49,6 +46,6 @@ func within(base, p string) (string, bool) {
 
 // Within reports whether p is base or below it. Both must be absolute and cleaned.
 func Within(base, p string) bool {
-	_, ok := within(base, p)
+	_, ok := Rel(base, p)
 	return ok
 }

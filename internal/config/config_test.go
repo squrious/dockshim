@@ -32,7 +32,9 @@ func TestDiscover(t *testing.T) {
 		root := t.TempDir()
 		write(t, filepath.Join(root, ".dockshim.yaml"), minimal)
 		sub := filepath.Join(root, "a", "b")
-		os.MkdirAll(sub, 0o755)
+		if err := os.MkdirAll(sub, 0o755); err != nil {
+			t.Fatal(err)
+		}
 
 		file, err := Discover(sub)
 		if err != nil || file != filepath.Join(root, ".dockshim.yaml") {
@@ -67,6 +69,22 @@ func TestDiscover(t *testing.T) {
 		file, err := Discover(empty, root)
 		if err != nil || RootOf(file) != root {
 			t.Fatalf("got %q, %v", file, err)
+		}
+	})
+
+	t.Run("unreadable is not absent", func(t *testing.T) {
+		if os.Getuid() == 0 {
+			t.Skip("root reads everything")
+		}
+		root := t.TempDir()
+		write(t, filepath.Join(root, ".dockshim", "config.yaml"), minimal)
+		dir := filepath.Join(root, ".dockshim")
+		if err := os.Chmod(dir, 0o000); err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { _ = os.Chmod(dir, 0o755) })
+		if _, err := Discover(root); !errors.Is(err, os.ErrPermission) {
+			t.Fatalf("got %v", err)
 		}
 	})
 
@@ -121,12 +139,13 @@ global: {shim_mode: link}
 aliases: {php: {service: a, shim_mode: wrapper}}
 `, []string{`global.shim_mode: invalid mode "link" (expected symlink or wrapper)`}},
 		{"path translation", `
-global: {path_translation: {enabled: maybe, max_copy_mb: 0, exclude: [rel]}}
-aliases: {php: {service: a, path_translation: {enabled: "false", max_copy_mb: "${X:-12}", exclude: [/ok]}}}
+global: {path_translation: {enabled: maybe, max_copy_mb: 0, allow: [rel], follow_symlinks: sometimes}}
+aliases: {php: {service: a, path_translation: {enabled: "false", max_copy_mb: "${X:-12}", allow: [/ok, 'C:\tmp']}}}
 `, []string{
 			`global.path_translation.enabled: invalid boolean "maybe"`,
+			`global.path_translation.follow_symlinks: invalid boolean "sometimes"`,
 			`global.path_translation.max_copy_mb: must be a positive integer, got "0"`,
-			`global.path_translation.exclude[0]: host path "rel" must be absolute`,
+			`global.path_translation.allow[0]: host path "rel" must be absolute`,
 		}},
 		{"compose without service", `
 compose: {files: [c.yaml]}
@@ -166,8 +185,11 @@ func TestParseRejectsUnknownFields(t *testing.T) {
 	if _, err := Parse([]byte("aliases: {php: {servce: a}}"), noEnv); err == nil || !strings.Contains(err.Error(), "servce") {
 		t.Fatalf("got %v", err)
 	}
-	if _, err := Parse([]byte("global: {user: [1]}"), noEnv); err == nil {
-		t.Fatal("expected error for non-scalar user")
+}
+
+func TestScalarRejectsCollections(t *testing.T) {
+	if _, err := Parse([]byte("global: {user: [1]}"), noEnv); err == nil || !strings.Contains(err.Error(), "expected a scalar value") {
+		t.Fatalf("got %v", err)
 	}
 }
 
@@ -196,7 +218,7 @@ aliases:
       deny: [BAZ]
       allow: [SSH_AUTH_SOCK]
 `)
-	p, err := Load(file)
+	p, err := Load(file, noEnv)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -235,8 +257,11 @@ aliases:
 	}
 }
 
-func TestResolveUserDefaultsToHost(t *testing.T) {
-	f, _ := Parse([]byte(minimal), noEnv)
+func TestResolveDefaults(t *testing.T) {
+	f, err := Parse([]byte(minimal), noEnv)
+	if err != nil {
+		t.Fatal(err)
+	}
 	p := f.Resolve(filepath.Join(t.TempDir(), ".dockshim.yaml"))
 	want := strconv.Itoa(os.Getuid()) + ":" + strconv.Itoa(os.Getgid())
 	if got := p.Aliases["php"].User; got != want {
@@ -246,7 +271,7 @@ func TestResolveUserDefaultsToHost(t *testing.T) {
 		t.Fatalf("shim mode = %q", mode)
 	}
 	pt := p.Aliases["php"].PathTranslation
-	if !pt.Enabled || pt.MaxCopyMB != DefaultMaxCopyMB || !slices.Equal(pt.Exclude, pathmap.DefaultCopyExclude) {
+	if !pt.Enabled || pt.FollowSymlinks || pt.MaxCopyMB != DefaultMaxCopyMB || len(pt.Allow) != 0 {
 		t.Fatalf("path translation defaults = %+v", pt)
 	}
 	if p.BinDir != filepath.Join(p.Root, ".dockshim", "bin") {

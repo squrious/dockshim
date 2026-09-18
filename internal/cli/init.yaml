@@ -1,7 +1,7 @@
 # dockshim configuration.
 # Values support environment interpolation: $VAR, ${VAR}, ${VAR:-default}, ${VAR:?error}, $$ for a literal $.
 
-# Where `dockshim install` creates alias symlinks, relative to the project root.
+# Where `dockshim install` creates the alias entry points, relative to the project root.
 # bin_dir: .dockshim/bin
 
 # Options for compose services.
@@ -23,11 +23,14 @@ global:
     allow: []
     # Set in the container.
     vars: {}
-  # Host paths in arguments: mapped ones are rewritten, other existing files copied to /tmp in the container.
+  # Host paths in arguments: mapped ones are rewritten, copyable files copied to /tmp in the container.
   path_translation:
     enabled: true
-    # Paths that keep their value, to designate the container's own files. /dev, /proc and /sys always do.
-    exclude: []
+    # Directories whose files may be copied. System temporary directories always may.
+    # Any other path keeps its value, and so designates the container's own file.
+    allow: []
+    # Let a symlink in an allowed directory point out of it.
+    follow_symlinks: false
     max_copy_mb: 100
 
 # Each alias runs the command of the same name in its target.

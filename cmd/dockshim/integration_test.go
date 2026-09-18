@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -55,11 +56,12 @@ func project(t *testing.T, mode, cfg string, files map[string]string) string {
 	if err != nil {
 		t.Fatal(err)
 	}
+	files = maps.Clone(files)
 	files[".dockshim.yaml"] = baseConfig(mode) + cfg
 	files["sub/.keep"] = ""
 	for name, content := range files {
 		p := filepath.Join(root, name)
-		os.MkdirAll(filepath.Dir(p), 0o755)
+		must(t, os.MkdirAll(filepath.Dir(p), 0o755))
 		if err := os.WriteFile(p, []byte(content), 0o644); err != nil {
 			t.Fatal(err)
 		}
@@ -108,7 +110,15 @@ func expect(t *testing.T, r result, stdout string, code int) {
 	}
 }
 
-// commonChecks exercises an alias named sh mapped to /app.
+func must(t *testing.T, err error) {
+	t.Helper()
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+// commonChecks exercises an alias named sh mapped to /app. stop stops the target, to check auto start;
+// it runs last.
 func commonChecks(t *testing.T, root string, stop func()) {
 	sub := filepath.Join(root, "sub")
 	hostUser := strconv.Itoa(os.Getuid()) + ":" + strconv.Itoa(os.Getgid())
@@ -141,20 +151,21 @@ func commonChecks(t *testing.T, root string, stop func()) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		os.MkdirAll(filepath.Join(ext, "dir"), 0o755)
-		os.WriteFile(filepath.Join(ext, "file.txt"), []byte("external"), 0o600)
-		os.WriteFile(filepath.Join(root, "mapped.txt"), []byte("mapped"), 0o644)
-		os.Symlink(filepath.Join(ext, "file.txt"), filepath.Join(ext, "link.md"))
+		must(t, os.MkdirAll(filepath.Join(ext, "dir"), 0o755))
+		must(t, os.WriteFile(filepath.Join(ext, "file.txt"), []byte("external"), 0o600))
+		must(t, os.WriteFile(filepath.Join(root, "mapped.txt"), []byte("mapped"), 0o644))
+		must(t, os.Symlink(filepath.Join(ext, "file.txt"), filepath.Join(ext, "link.md")))
+		// A link may not carry a copy out of an allowed directory.
+		escape := filepath.Join(ext, "escape.md")
+		must(t, os.Symlink("/etc/hostname", escape))
 
-		// A copied file keeps its name and belongs to the container user; mapped paths are rewritten.
-		script := `cat "$1"; echo; stat -c %u:%g "$1"; basename "$1"; cat "$2"; echo; cat "$3"; echo "$4"`
+		// A copied file keeps its name and belongs to the container user; mapped paths are
+		// rewritten; anything outside the allowed directories keeps its value.
+		script := `cat "$1"; echo; stat -c %u:%g "$1"; basename "$1"; cat "$2"; echo; echo "$3"; echo "$4"; echo "$5"`
 		r := shim(t, root, sub, "", nil, "sh", "-c", script, "_",
-			filepath.Join(ext, "link.md"), filepath.Join(root, "mapped.txt"), "/etc/hostname", "--in="+filepath.Join(root, "sub"))
-		hostname, err := os.ReadFile("/etc/hostname")
-		if err != nil {
-			t.Fatal(err)
-		}
-		want := "external\n" + hostUser + "\nlink.md\nmapped\n" + strings.TrimSpace(string(hostname)) + "\n--in=/app/sub"
+			filepath.Join(ext, "link.md"), filepath.Join(root, "mapped.txt"), "/etc/hostname", escape,
+			"--in="+filepath.Join(root, "sub"))
+		want := "external\n" + hostUser + "\nlink.md\nmapped\n/etc/hostname\n" + escape + "\n--in=/app/sub"
 		expect(t, r, want, 0)
 
 		// Directories are left to the container, with a warning.
@@ -186,7 +197,7 @@ aliases:
     path_mapping: {.: /app}
 `, map[string]string{})
 		docker(t, root, "run", "--detach", "--init", "--name", name, "--workdir", "/", "--volume", root+":/app", image, "sleep", "infinity")
-		t.Cleanup(func() { exec.Command("docker", "rm", "--force", name).Run() })
+		t.Cleanup(func() { _ = exec.Command("docker", "rm", "--force", name).Run() })
 
 		commonChecks(t, root, func() { docker(t, root, "stop", "--time", "0", name) })
 	})
@@ -198,7 +209,7 @@ func TestIntegrationCompose(t *testing.T) {
 		t.Cleanup(func() {
 			cmd := exec.Command("docker", "compose", "down", "--volumes", "--timeout", "0")
 			cmd.Dir = root
-			cmd.Run()
+			_ = cmd.Run()
 		})
 
 		commonChecks(t, root, func() { docker(t, root, "compose", "stop", "--timeout", "0") })

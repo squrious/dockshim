@@ -28,6 +28,13 @@ func shims(mode string, names ...string) []Shim {
 	return out
 }
 
+func must(t *testing.T, err error) {
+	t.Helper()
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
 // assertShim checks that path is an entry point of the given mode for alias name.
 func assertShim(t *testing.T, path, exe, mode, name string) {
 	t.Helper()
@@ -39,8 +46,8 @@ func assertShim(t *testing.T, path, exe, mode, name string) {
 		t.Fatalf("%s is not recognized as a shim", path)
 	}
 	if mode == config.ShimSymlink {
-		if target, _ := os.Readlink(path); target != exe {
-			t.Fatalf("%s -> %q, want %q", path, target, exe)
+		if target, err := os.Readlink(path); err != nil || target != exe {
+			t.Fatalf("%s -> %q (%v), want %q", path, target, err, exe)
 		}
 		return
 	}
@@ -69,17 +76,17 @@ func TestInstall(t *testing.T) {
 			assertShim(t, filepath.Join(dir, "php"), exe, mode, "php")
 
 			// Idempotent.
-			res, _ = Install(dir, exe, shims(mode, "node", "php"))
-			if len(res.Created)+len(res.Removed) != 0 {
+			res, err = Install(dir, exe, shims(mode, "node", "php"))
+			if err != nil || len(res.Created)+len(res.Removed) != 0 {
 				t.Fatalf("second install changed things: %+v", res)
 			}
 
 			// Foreign files are left alone, stale shims removed, moved binaries re-linked.
-			os.WriteFile(filepath.Join(dir, "composer"), nil, 0o755)
-			os.Symlink("/old/place/dockshim", filepath.Join(dir, "old"))
-			os.Symlink("/usr/bin/env", filepath.Join(dir, "other"))
-			os.Remove(filepath.Join(dir, "php"))
-			os.Symlink("/old/place/dockshim", filepath.Join(dir, "php"))
+			must(t, os.WriteFile(filepath.Join(dir, "composer"), nil, 0o755))
+			must(t, os.Symlink("/old/place/dockshim", filepath.Join(dir, "old")))
+			must(t, os.Symlink("/usr/bin/env", filepath.Join(dir, "other")))
+			must(t, os.Remove(filepath.Join(dir, "php")))
+			must(t, os.Symlink("/old/place/dockshim", filepath.Join(dir, "php")))
 
 			res, err = Install(dir, exe, shims(mode, "composer", "php"))
 			if err != nil {
@@ -118,9 +125,9 @@ func TestInstallMixedModes(t *testing.T) {
 
 func TestIsShim(t *testing.T) {
 	dir, exe := setup(t)
-	os.MkdirAll(dir, 0o755)
+	must(t, os.MkdirAll(dir, 0o755))
 	foreign := filepath.Join(dir, "foreign")
-	os.WriteFile(foreign, []byte("#!/bin/sh\nexec something\n"), 0o755)
+	must(t, os.WriteFile(foreign, []byte("#!/bin/sh\nexec something\n"), 0o755))
 	if IsShim(foreign, exe) || IsShim(filepath.Join(dir, "missing"), exe) || IsShim(dir, exe) {
 		t.Fatal("false positive")
 	}
@@ -130,7 +137,8 @@ func TestLocate(t *testing.T) {
 	for _, mode := range []string{config.ShimSymlink, config.ShimWrapper} {
 		t.Run(mode, func(t *testing.T) {
 			dir, exe := setup(t)
-			Install(dir, exe, shims(mode, "php"))
+			_, err := Install(dir, exe, shims(mode, "php"))
+			must(t, err)
 			php := filepath.Join(dir, "php")
 
 			if got := Locate(php, exe); got != php {

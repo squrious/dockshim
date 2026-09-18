@@ -17,7 +17,7 @@ stdout 'is valid'
 global:
   user: 1000
   path_translation:
-    exclude: [/data]
+    allow: [/data]
     max_copy_mb: 5
   env:
     deny: [FOO]
@@ -36,7 +36,8 @@ aliases:
       allow: [SSH_AUTH_SOCK]
     path_translation:
       enabled: false
-      exclude: [/data2]
+      allow: [/data2/]
+      follow_symlinks: true
 -- want.yaml --
 root: $WORK
 file: $WORK/.dockshim.yaml
@@ -77,12 +78,10 @@ aliases:
       A: global
     path_translation:
       enabled: false
-      exclude:
-        - /dev
-        - /proc
-        - /sys
+      allow:
         - /data
         - /data2
+      follow_symlinks: true
       max_copy_mb: 5
   php:
     shim_mode: symlink
@@ -120,9 +119,7 @@ aliases:
       A: alias
     path_translation:
       enabled: true
-      exclude:
-        - /dev
-        - /proc
-        - /sys
+      allow:
         - /data
+      follow_symlinks: false
       max_copy_mb: 5

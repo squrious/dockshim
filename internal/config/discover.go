@@ -9,7 +9,11 @@ import (
 )
 
 const (
-	DirName  = ".dockshim"
+	// ToolName is the binary name: argv[0] dispatch, alias names and messages depend on it.
+	ToolName = "dockshim"
+	// DirName is the project directory holding the config file and, by default, bin_dir.
+	DirName = ".dockshim"
+	// FlatFile is the config file at the project root, the alternative to DirFile.
 	FlatFile = ".dockshim.yaml"
 )
 
@@ -24,14 +28,20 @@ var Candidates = []string{
 	filepath.Join(DirName, "config.yml"),
 }
 
+// ErrNotFound is returned by Discover when no start directory has a config file above it.
 var ErrNotFound = errors.New("no dockshim config found (looked for " + strings.Join(Candidates, ", ") + ")")
 
-// FindIn returns the config file of dir, or "" if there is none.
-func FindIn(dir string) (string, error) {
+// findIn returns the config file of dir, or "" if there is none.
+func findIn(dir string) (string, error) {
 	var found []string
 	for _, c := range Candidates {
 		p := filepath.Join(dir, c)
-		if fi, err := os.Stat(p); err == nil && !fi.IsDir() {
+		fi, err := os.Stat(p)
+		switch {
+		case errors.Is(err, os.ErrNotExist):
+		case err != nil:
+			return "", err
+		case !fi.IsDir():
 			found = append(found, p)
 		}
 	}
@@ -53,7 +63,7 @@ func Discover(starts ...string) (string, error) {
 			return "", err
 		}
 		for {
-			file, err := FindIn(dir)
+			file, err := findIn(dir)
 			if err != nil || file != "" {
 				return file, err
 			}

@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/rogpeppe/go-internal/testscript"
@@ -24,7 +25,7 @@ func run(m *testing.M) int {
 		fmt.Fprintln(os.Stderr, err)
 		return 1
 	}
-	defer os.RemoveAll(dir)
+	defer func() { _ = os.RemoveAll(dir) }()
 	binDir = dir
 
 	build := exec.Command("go", "build", "-o", filepath.Join(dir, "dockshim"), ".")
@@ -38,6 +39,7 @@ func run(m *testing.M) int {
 
 // fakeDocker records calls in $FAKE_DOCKER_STATE/calls and emulates the subcommands dockshim uses.
 // A target is running when $FAKE_DOCKER_STATE/running exists.
+// up and start save their environment in $FAKE_DOCKER_STATE/up-env.
 // Creating $FAKE_DOCKER_STATE/stop-on-exec makes the next exec stop the target and fail.
 // cp extracts the archive into $FAKE_DOCKER_STATE/cp, standing for the container /tmp.
 // exec prints what it received, and exits with $FAKE_EXEC_EXIT. It emulates `cat` (stdin, or
@@ -54,24 +56,24 @@ sub=$1; shift
 case "$sub" in
   ps) [ -e "$state/running" ] && echo abc123; exit 0;;
   inspect) if [ -e "$state/running" ]; then echo true; else echo false; fi; exit 0;;
-  up|start) touch "$state/running"; exit 0;;
+  up|start) /usr/bin/env > "$state/up-env"; touch "$state/running"; exit 0;;
   cp)
     [ "$1 $2" = "--archive -" ] || { echo "fake: unexpected cp $*" >&2; exit 99; }
     /bin/mkdir -p "$state/cp" && exec /usr/bin/tar -xf - -C "$state/cp" --no-same-owner;;
   exec)
     [ -e "$state/running" ] || { echo "fake: not running" >&2; exit 1; }
     if [ -e "$state/stop-on-exec" ]; then rm -f "$state/stop-on-exec" "$state/running"; exit 1; fi
-    echo "dir $PWD"
+    printf '%s\n' "dir $PWD"
     while [ $# -gt 0 ]; do
       case "$1" in
-        --env) eval "v=\${$2-<unset>}"; echo "env $2=$v"; shift 2;;
-        --user|--workdir) echo "$1 $2"; shift 2;;
-        -T|--interactive|--tty) echo "flag $1"; shift;;
+        --env) eval "v=\${$2-<unset>}"; printf '%s\n' "env $2=$v"; shift 2;;
+        --user|--workdir) printf '%s\n' "$1 $2"; shift 2;;
+        -T|--interactive|--tty) printf '%s\n' "flag $1"; shift;;
         *) break;;
       esac
     done
-    echo "target $1"; shift
-    echo "cmd $*"
+    printf '%s\n' "target $1"; shift
+    printf '%s\n' "cmd $*"
     case "$1" in
       cat) shift; if [ $# -eq 0 ]; then /bin/cat; else for f; do /bin/cat "$state/cp${f#/tmp}"; done; fi;;
       rm) /bin/rm -rf "$state/cp${3#/tmp}";;
@@ -83,13 +85,31 @@ echo "fake: unsupported $sub" >&2
 exit 99
 `
 
+// winpath VAR PATH [slash] sets VAR to the wsl.localhost UNC spelling of PATH, which a
+// script cannot build itself. "slash" asks for the forward slash spelling.
+func winpath(ts *testscript.TestScript, neg bool, args []string) {
+	if neg || len(args) < 2 || len(args) > 3 {
+		ts.Fatalf("usage: winpath VAR PATH [slash]")
+	}
+	distro := ts.Getenv("WSL_DISTRO_NAME")
+	if distro == "" {
+		ts.Fatalf("winpath: WSL_DISTRO_NAME is not set")
+	}
+	if len(args) == 3 && args[2] == "slash" {
+		ts.Setenv(args[0], "//wsl.localhost/"+distro+args[1])
+		return
+	}
+	ts.Setenv(args[0], `\\wsl.localhost\`+distro+strings.ReplaceAll(args[1], "/", `\`))
+}
+
 func TestScripts(t *testing.T) {
 	fakeDir := t.TempDir()
 	if err := os.WriteFile(filepath.Join(fakeDir, "docker"), []byte(fakeDocker), 0o755); err != nil {
 		t.Fatal(err)
 	}
 	testscript.Run(t, testscript.Params{
-		Dir: "testdata/script",
+		Dir:  "testdata/script",
+		Cmds: map[string]func(*testscript.TestScript, bool, []string){"winpath": winpath},
 		Setup: func(env *testscript.Env) error {
 			state := filepath.Join(env.WorkDir, ".docker-state")
 			env.Setenv("FAKE_DOCKER_STATE", state)

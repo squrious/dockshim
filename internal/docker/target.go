@@ -5,24 +5,29 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"slices"
 	"strings"
 )
 
+// ExecOptions are the docker exec flags shared by every target.
 type ExecOptions struct {
 	TTY     bool
 	User    string
-	Workdir string
+	Workdir string   // empty keeps the container's own
 	Env     []string // variable names, values are read from the docker process env
 }
 
 // Target is where commands run: a compose service or a plain container.
 type Target interface {
-	String() string
+	fmt.Stringer
 	// Dir is the directory docker must run from.
 	Dir() string
+	// IsRunning reports whether the target can exec commands now. Any failure counts as not running.
 	IsRunning() bool
 	// EnsureUp starts the target, keeping existing containers and volumes. Idempotent.
-	EnsureUp(stderr io.Writer) error
+	// env is the docker process environment, as for exec; nil means inherit.
+	EnsureUp(env []string, stderr io.Writer) error
+	// ExecArgs returns the docker CLI arguments running argv in the target.
 	ExecArgs(opts ExecOptions, argv []string) []string
 	// ContainerID identifies the running container, for docker cp and exec.
 	ContainerID() (string, error)
@@ -42,13 +47,13 @@ func commonExecFlags(opts ExecOptions) []string {
 	return args
 }
 
-func output(r Runner, dir string, args ...string) (string, int) {
+// output runs docker and returns its trimmed stdout. A non-zero exit is an error.
+func output(r Runner, dir string, args ...string) (string, error) {
 	var out bytes.Buffer
-	code, err := r.Run(Cmd{Dir: dir, Args: args, Stdout: &out, Stderr: io.Discard})
-	if err != nil {
-		return "", 127
+	if err := run(r, dir, nil, &out, io.Discard, args...); err != nil {
+		return "", err
 	}
-	return strings.TrimSpace(out.String()), code
+	return strings.TrimSpace(out.String()), nil
 }
 
 func run(r Runner, dir string, env []string, stdout, stderr io.Writer, args ...string) error {
@@ -62,6 +67,8 @@ func run(r Runner, dir string, env []string, stdout, stderr io.Writer, args ...s
 	return nil
 }
 
+// Compose targets a service of a compose project, run from ProjectDir.
+// Files and ProjectName are optional: compose then applies its own discovery.
 type Compose struct {
 	Runner      Runner
 	ProjectDir  string
@@ -85,22 +92,28 @@ func (c *Compose) base() []string {
 }
 
 func (c *Compose) IsRunning() bool {
-	out, code := output(c.Runner, c.ProjectDir, append(c.base(), "ps", "--status", "running", "--quiet", c.Service)...)
-	return code == 0 && out != ""
+	_, err := c.ContainerID()
+	return err == nil
 }
 
 // ContainerID returns the first container of the service; scaled services are not distinguished.
 func (c *Compose) ContainerID() (string, error) {
-	out, code := output(c.Runner, c.ProjectDir, append(c.base(), "ps", "--status", "running", "--quiet", c.Service)...)
+	out, err := output(c.Runner, c.ProjectDir, append(c.base(), "ps", "--status", "running", "--quiet", c.Service)...)
+	if err != nil {
+		return "", err
+	}
 	id, _, _ := strings.Cut(out, "\n")
-	if code != 0 || id == "" {
+	if id == "" {
 		return "", fmt.Errorf("%s is not running", c)
 	}
 	return id, nil
 }
 
-func (c *Compose) EnsureUp(stderr io.Writer) error {
-	env := append(os.Environ(), "COMPOSE_PROGRESS=quiet")
+func (c *Compose) EnsureUp(env []string, stderr io.Writer) error {
+	if env == nil {
+		env = os.Environ()
+	}
+	env = append(slices.Clone(env), "COMPOSE_PROGRESS=quiet")
 	return run(c.Runner, c.ProjectDir, env, stderr, stderr, append(c.base(), "up", "--detach", c.Service)...)
 }
 
@@ -114,6 +127,7 @@ func (c *Compose) ExecArgs(opts ExecOptions, argv []string) []string {
 	return append(args, argv...)
 }
 
+// Container targets an existing container by name or id. It is started, never created.
 type Container struct {
 	Runner     Runner
 	ProjectDir string
@@ -124,14 +138,14 @@ func (c *Container) String() string { return "container " + c.Name }
 func (c *Container) Dir() string    { return c.ProjectDir }
 
 func (c *Container) IsRunning() bool {
-	out, code := output(c.Runner, c.ProjectDir, "inspect", "--format", "{{.State.Running}}", c.Name)
-	return code == 0 && out == "true"
+	out, err := output(c.Runner, c.ProjectDir, "inspect", "--format", "{{.State.Running}}", c.Name)
+	return err == nil && out == "true"
 }
 
 func (c *Container) ContainerID() (string, error) { return c.Name, nil }
 
-func (c *Container) EnsureUp(stderr io.Writer) error {
-	return run(c.Runner, c.ProjectDir, nil, io.Discard, stderr, "start", c.Name)
+func (c *Container) EnsureUp(env []string, stderr io.Writer) error {
+	return run(c.Runner, c.ProjectDir, env, io.Discard, stderr, "start", c.Name)
 }
 
 func (c *Container) ExecArgs(opts ExecOptions, argv []string) []string {

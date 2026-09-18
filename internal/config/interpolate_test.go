@@ -49,6 +49,18 @@ func TestInterpolate(t *testing.T) {
 	}
 }
 
+func TestLookupEnviron(t *testing.T) {
+	lookup := LookupEnviron([]string{"A=1", "AB=2", "EMPTY=", "A=last"})
+	for name, want := range map[string]struct {
+		v  string
+		ok bool
+	}{"A": {"last", true}, "AB": {"2", true}, "EMPTY": {"", true}, "B": {"", false}} {
+		if v, ok := lookup(name); v != want.v || ok != want.ok {
+			t.Errorf("lookup(%q) = %q, %v; want %q, %v", name, v, ok, want.v, want.ok)
+		}
+	}
+}
+
 func TestParseInterpolates(t *testing.T) {
 	lookup := env(map[string]string{"UID": "1000", "SVC": "tools", "TRICKY": "a: [b", "DIR": "src"})
 	f, err := Parse([]byte(`

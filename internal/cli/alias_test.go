@@ -14,12 +14,19 @@ type answer bool
 
 func (a answer) Confirm(string) (bool, error) { return bool(a), nil }
 
+func must(t *testing.T, err error) {
+	t.Helper()
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
 func staleSetup(t *testing.T) (shimPath string, e *Env, stderr *bytes.Buffer) {
 	t.Helper()
 	root := t.TempDir()
 	exe := filepath.Join(t.TempDir(), "dockshim")
-	os.WriteFile(exe, nil, 0o755)
-	os.WriteFile(filepath.Join(root, ".dockshim.yaml"), []byte("aliases: {php: {service: tools}}\n"), 0o644)
+	must(t, os.WriteFile(exe, nil, 0o755))
+	must(t, os.WriteFile(filepath.Join(root, ".dockshim.yaml"), []byte("aliases: {php: {service: tools}}\n"), 0o644))
 	bin := filepath.Join(root, ".dockshim", "bin")
 	if _, err := shim.Install(bin, exe, []shim.Shim{{Name: "php"}, {Name: "gone"}}); err != nil {
 		t.Fatal(err)
@@ -72,9 +79,9 @@ func TestStaleShim(t *testing.T) {
 	})
 
 	t.Run("shim outside bin_dir is never removed", func(t *testing.T) {
-		p, e, _ := staleSetup(t)
+		p, e, stderr := staleSetup(t)
 		other := filepath.Join(t.TempDir(), "gone")
-		os.Symlink(e.Executable, other)
+		must(t, os.Symlink(e.Executable, other))
 		// Config is still found through cwd.
 		root := filepath.Dir(filepath.Dir(filepath.Dir(p)))
 		e.Getwd = func() (string, error) { return root, nil }
@@ -82,6 +89,9 @@ func TestStaleShim(t *testing.T) {
 		Main([]string{other}, e)
 		if _, err := os.Lstat(other); err != nil {
 			t.Fatal("foreign shim should be kept")
+		}
+		if !strings.Contains(stderr.String(), "stale shim outside bin_dir") {
+			t.Fatalf("stderr = %s", stderr)
 		}
 	})
 }

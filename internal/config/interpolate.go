@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
 	"gopkg.in/yaml.v3"
@@ -9,6 +10,18 @@ import (
 
 // LookupFunc returns the value of an environment variable and whether it is set.
 type LookupFunc func(name string) (string, bool)
+
+// LookupEnviron looks names up in "NAME=value" entries. The last entry for a name wins, as in os/exec.
+func LookupEnviron(environ []string) LookupFunc {
+	return func(name string) (string, bool) {
+		for _, kv := range slices.Backward(environ) {
+			if v, ok := strings.CutPrefix(kv, name+"="); ok {
+				return v, true
+			}
+		}
+		return "", false
+	}
+}
 
 // interpolateNode expands variables in every scalar value (not mapping keys) below n.
 func interpolateNode(n *yaml.Node, lookup LookupFunc) error {

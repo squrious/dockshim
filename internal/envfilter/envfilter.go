@@ -20,16 +20,19 @@ var (
 
 var nameRe = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 
+// ValidName reports whether name can be forwarded with docker exec --env.
 func ValidName(name string) bool {
 	return nameRe.MatchString(name)
 }
 
+// Rules select the host variables forwarded to the container.
 type Rules struct {
 	Deny         []string `yaml:"deny"`
 	DenyPrefixes []string `yaml:"deny_prefixes"`
 	Allow        []string `yaml:"allow"`
 }
 
+// Denied reports whether name must not be forwarded. Allow wins over Deny and DenyPrefixes.
 func (r Rules) Denied(name string) bool {
 	if slices.Contains(r.Allow, name) {
 		return false
