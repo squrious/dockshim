@@ -41,14 +41,16 @@ type Project struct {
 // ResolvedAlias is an alias with global settings merged in: users are uid:gid or names, path
 // mappings are absolute, and Env includes the built-in denylist.
 type ResolvedAlias struct {
-	ShimMode        string                  `yaml:"shim_mode"`
-	Service         string                  `yaml:"service,omitempty"`
-	Container       string                  `yaml:"container,omitempty"`
-	User            string                  `yaml:"user"`
-	PathMapping     pathmap.Map             `yaml:"path_mapping"`
-	Env             envfilter.Rules         `yaml:"env"`
-	Vars            map[string]string       `yaml:"vars"`
-	PathTranslation ResolvedPathTranslation `yaml:"path_translation"`
+	ShimMode string `yaml:"shim_mode"`
+	Service  string `yaml:"service"`
+	User     string `yaml:"user"`
+	// InferPathMapping is set when the config has no path_mapping: the mappings are then read from
+	// the container's bind mounts at run time (ADR 0009).
+	InferPathMapping bool                    `yaml:"infer_path_mapping"`
+	PathMapping      pathmap.Map             `yaml:"path_mapping"`
+	Env              envfilter.Rules         `yaml:"env"`
+	Vars             map[string]string       `yaml:"vars"`
+	PathTranslation  ResolvedPathTranslation `yaml:"path_translation"`
 }
 
 // ResolvedPathTranslation is path_translation with its defaults applied.
@@ -129,10 +131,11 @@ func (f *File) Resolve(file string) *Project {
 
 	for name, a := range f.Aliases {
 		r := &ResolvedAlias{
-			ShimMode:  string(cmp.Or(a.ShimMode, f.Global.ShimMode, ShimSymlink)),
-			Service:   a.Service,
-			Container: a.Container,
-			User:      resolveUser(string(cmp.Or(a.User, f.Global.User, UserHost))),
+			ShimMode:         string(cmp.Or(a.ShimMode, f.Global.ShimMode, ShimSymlink)),
+			Service:          a.Service,
+			User:             resolveUser(string(cmp.Or(a.User, f.Global.User, UserHost))),
+			InferPathMapping: a.PathMapping == nil,
+			PathMapping:      pathmap.Map{},
 			Env: envfilter.Rules{
 				Deny:         concat(envfilter.DefaultDeny, f.Global.Env.Deny, a.Env.Deny),
 				DenyPrefixes: concat(envfilter.DefaultDenyPrefixes, f.Global.Env.DenyPrefixes, a.Env.DenyPrefixes),

@@ -29,7 +29,7 @@ Each argument after the command name is checked. For `-x=value` / `--opt=value` 
 - A compose service is addressed through its first running container.
 - `max_copy_mb` (default 100) caps the total. Over the cap, the argument is left untouched with a warning instead of failing the command: a false positive must not block a command.
 
-**Cleanup.** `docker exec --user 0 <id> rm -rf /tmp/dockshim-<random>` runs after the command, on success or failure. A failure there is only a warning. On a retry, the copy is redone.
+**Cleanup.** `docker exec --user 0 <id> rm -rf /tmp/dockshim-<random>` runs after the command, on success or failure. A failure there is only a warning.
 
 **Configuration.** `path_translation: {enabled, allow, follow_symlinks, max_copy_mb}` (0008), globally or per alias. Scalars are overridden by the alias, `allow` is appended. Enabled by default.
 

@@ -1,4 +1,4 @@
-// Package docker drives the docker CLI against compose services or plain containers.
+// Package docker drives the docker CLI against compose services.
 package docker
 
 import (

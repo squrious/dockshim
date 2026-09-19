@@ -4,7 +4,7 @@
 # Where `dockshim install` creates the alias entry points, relative to the project root.
 # bin_dir: .dockshim/bin
 
-# Options for compose services.
+# Options passed to every docker compose call.
 # compose:
 #   files: [compose.yaml]
 #   project_name: my-project
@@ -36,7 +36,8 @@ global:
 # Each alias runs the command of the same name in its target.
 aliases:
   # php:
-  #   service: app              # compose service, or `container: <name or id>`
+  #   service: app              # compose service
+  #   # Inferred from the container's bind mounts inside the project when omitted.
   #   path_mapping:
   #     .: /app                 # host path (relative to the project root): container path
   #   user: 1000                # overrides global.user

@@ -6,6 +6,8 @@ import (
 	"io"
 	"maps"
 	"slices"
+	"syscall"
+	"time"
 
 	"github.com/squrious/dockshim/internal/config"
 	"github.com/squrious/dockshim/internal/docker"
@@ -31,6 +33,8 @@ type Input struct {
 	Project *config.Project
 	Alias   *config.ResolvedAlias
 	Runner  docker.Runner
+	// Target is where the command runs. Nil means the alias service.
+	Target  docker.Target
 	Cwd     string // real path
 	Environ []string
 	// Args is the command line to run in the container. Args[0], the command name, is never translated.
@@ -41,10 +45,43 @@ type Input struct {
 	HostPaths *hostpath.Resolver
 }
 
+// Run starts the target if it is down, infers the path mappings when the alias sets none,
+// then builds the plan and executes it.
+func Run(in Input, stdio Stdio) (int, error) {
+	if in.Target == nil {
+		in.Target = NewTarget(in.Project, in.Alias, in.Runner)
+	}
+	if !in.Target.IsRunning() {
+		env, _ := environment(in)
+		if err := in.Target.EnsureUp(env, stdio.Err); err != nil {
+			return 1, fmt.Errorf("starting %s: %w", in.Target, err)
+		}
+	}
+	if in.Alias.InferPathMapping {
+		// Skipped mounts are left to `dockshim config`: they would be reported on every call.
+		m, _, err := InferMappings(in.Target, in.Project.Root)
+		if err != nil {
+			return 1, err
+		}
+		a := *in.Alias
+		a.PathMapping = m
+		in.Alias = &a
+	}
+	p, err := Build(in)
+	if err != nil {
+		return 1, err
+	}
+	return Execute(p, stdio)
+}
+
 // Build computes the docker exec call for in: host paths in the arguments are translated,
 // forwarded variables and alias vars are passed by name, and the working directory is mapped.
+// It uses the alias path mappings as they are: Run infers them first when needed.
 func Build(in Input) (*Plan, error) {
-	p := &Plan{Target: NewTarget(in.Project, in.Alias, in.Runner), Runner: in.Runner}
+	if in.Target == nil {
+		in.Target = NewTarget(in.Project, in.Alias, in.Runner)
+	}
+	p := &Plan{Target: in.Target, Runner: in.Runner}
 	workdir, _ := in.Alias.PathMapping.ToContainer(in.Cwd)
 
 	args := in.Args
@@ -56,17 +93,8 @@ func Build(in Input) (*Plan, error) {
 		args = newPathTranslator(in, workdir, warn).transform(p, args)
 	}
 
-	// Vars are appended after the inherited environment: for duplicate keys, os/exec keeps the last.
-	env := slices.Clone(in.Environ)
-	names := in.Alias.Env.Names(in.Environ)
-	for _, k := range slices.Sorted(maps.Keys(in.Alias.Vars)) {
-		env = append(env, k+"="+in.Alias.Vars[k])
-		if !slices.Contains(names, k) {
-			names = append(names, k)
-		}
-	}
-	p.Env = env
-
+	var names []string
+	p.Env, names = environment(in)
 	p.Args = p.Target.ExecArgs(docker.ExecOptions{
 		TTY:     in.TTY,
 		User:    in.Alias.User,
@@ -76,16 +104,27 @@ func Build(in Input) (*Plan, error) {
 	return p, nil
 }
 
-// NewTarget returns the compose service or the container an alias runs in.
-func NewTarget(p *config.Project, a *config.ResolvedAlias, r docker.Runner) docker.Target {
-	if a.Service != "" {
-		c := &docker.Compose{Runner: r, ProjectDir: p.Root, Service: a.Service}
-		if p.Compose != nil {
-			c.Files, c.ProjectName = p.Compose.Files, p.Compose.ProjectName
+// environment returns the docker process environment, and the names of the variables exec forwards.
+// Vars are appended after the inherited environment: for duplicate keys, os/exec keeps the last.
+func environment(in Input) (env, names []string) {
+	env = slices.Clone(in.Environ)
+	names = in.Alias.Env.Names(in.Environ)
+	for _, k := range slices.Sorted(maps.Keys(in.Alias.Vars)) {
+		env = append(env, k+"="+in.Alias.Vars[k])
+		if !slices.Contains(names, k) {
+			names = append(names, k)
 		}
-		return c
 	}
-	return &docker.Container{Runner: r, ProjectDir: p.Root, Name: a.Container}
+	return env, names
+}
+
+// NewTarget returns the compose service an alias runs in.
+func NewTarget(p *config.Project, a *config.ResolvedAlias, r docker.Runner) docker.Target {
+	c := &docker.Compose{Runner: r, ProjectDir: p.Root, Service: a.Service}
+	if p.Compose != nil {
+		c.Files, c.ProjectName = p.Compose.Files, p.Compose.ProjectName
+	}
+	return c
 }
 
 // Stdio are the streams given to the command. Err also receives dockshim warnings.
@@ -94,9 +133,9 @@ type Stdio struct {
 	Out, Err io.Writer
 }
 
-// Execute starts the target if needed, runs the command and returns its exit code.
-// When the command fails with 1 because the target went down meanwhile, it is started again,
-// PreRun steps replayed and the command retried once. PostRun failures are only warnings.
+// Execute runs PreRun, the command and PostRun on a running target, and returns the command exit code.
+// A command failing while the target is down gets a warning, as its exit code may come from
+// the container stopping. It is never run again. PostRun failures are only warnings.
 func Execute(p *Plan, stdio Stdio) (int, error) {
 	defer func() {
 		for _, step := range slices.Backward(p.PostRun) {
@@ -105,30 +144,38 @@ func Execute(p *Plan, stdio Stdio) (int, error) {
 			}
 		}
 	}()
-	start := func(verb string) error {
-		if err := p.Target.EnsureUp(p.Env, stdio.Err); err != nil {
-			return fmt.Errorf("%s %s: %w", verb, p.Target, err)
-		}
-		return runSteps(p.PreRun)
-	}
-
-	if p.Target.IsRunning() {
-		if err := runSteps(p.PreRun); err != nil {
-			return 1, err
-		}
-	} else if err := start("starting"); err != nil {
+	if err := runSteps(p.PreRun); err != nil {
 		return 1, err
 	}
+	code, err := p.Runner.Run(docker.Cmd{Dir: p.Target.Dir(), Args: p.Args, Env: p.Env, Stdin: stdio.In, Stdout: stdio.Out, Stderr: stdio.Err})
+	if err == nil && code != 0 && stopped(p.Target, code) {
+		warnf(stdio.Err, "%s is not running anymore: exit status %d may come from the container stopping, not from the command", p.Target, code)
+	}
+	return code, err
+}
 
-	cmd := docker.Cmd{Dir: p.Target.Dir(), Args: p.Args, Env: p.Env, Stdin: stdio.In, Stdout: stdio.Out, Stderr: stdio.Err}
-	code, err := p.Runner.Run(cmd)
-	if err != nil || code != 1 || p.Target.IsRunning() {
-		return code, err
+// Stopping a container kills the commands exec started (137, or 143 when they exit on SIGTERM)
+// a moment before docker reports it stopped. For those codes, the state gets time to settle.
+var (
+	settleTries = 10
+	settleDelay = 100 * time.Millisecond
+)
+
+// stopped reports whether the target is down after the command failed with code.
+func stopped(t docker.Target, code int) bool {
+	tries := 1
+	if code == 128+int(syscall.SIGKILL) || code == 128+int(syscall.SIGTERM) {
+		tries = settleTries
 	}
-	if err := start("restarting"); err != nil {
-		return 1, err
+	for i := range tries {
+		if i > 0 {
+			time.Sleep(settleDelay)
+		}
+		if !t.IsRunning() {
+			return true
+		}
 	}
-	return p.Runner.Run(cmd)
+	return false
 }
 
 func runSteps(steps []Step) error {

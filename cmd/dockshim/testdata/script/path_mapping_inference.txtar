@@ -1,0 +1,41 @@
+# Without path_mapping, mappings come from the bind mounts of the running container.
+exec sh -c 'printf "%s" "[{\"Type\":\"bind\",\"Source\":\"$WORK\",\"Destination\":\"/app\"},{\"Type\":\"bind\",\"Source\":\"$WORK/src\",\"Destination\":\"/code\"},{\"Type\":\"volume\",\"Source\":\"/var/lib/docker/volumes/v/_data\",\"Destination\":\"/data\"},{\"Type\":\"bind\",\"Source\":\"/var/run/docker.sock\",\"Destination\":\"/var/run/docker.sock\"}]" > $FAKE_DOCKER_STATE/mounts'
+exec dockshim install
+env PATH=$WORK/.dockshim/bin${:}$PATH
+
+cd src/sub
+exec php $WORK/composer.json
+stdout '^--workdir /code/sub$'
+stdout '^cmd php /app/composer.json$'
+# Bind mounts from outside the project are skipped silently: dockshim config reports them.
+! stderr .
+# The service is started before its mounts are read.
+exec sh -c 'grep -n -e "up --detach" -e "^inspect" $FAKE_DOCKER_STATE/calls'
+stdout '^[0-9]+:compose up --detach tools\n[0-9]+:inspect --format \{\{json \.Mounts\}\} abc123$'
+
+# config lists skipped mounts of a running service, and never starts it.
+exec dockshim config php
+stdout '^  path_mapping +inferred from the container''s bind mounts\n +not mapped, outside the project: /var/run/docker.sock$'
+rm $FAKE_DOCKER_STATE/running
+rm $FAKE_DOCKER_STATE/calls
+exec dockshim config php
+! stdout 'not mapped'
+! grep 'up|inspect' $FAKE_DOCKER_STATE/calls
+
+# A path_mapping, even empty, turns inference off.
+rm $FAKE_DOCKER_STATE/calls
+exec explicit
+! stdout 'workdir'
+! stderr .
+! grep inspect $FAKE_DOCKER_STATE/calls
+
+-- .dockshim.yaml --
+aliases:
+  php:
+    service: tools
+  explicit:
+    service: tools
+    path_mapping: {}
+-- composer.json --
+{}
+-- src/sub/.keep --

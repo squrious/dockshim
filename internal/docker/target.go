@@ -2,6 +2,7 @@ package docker
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -17,7 +18,7 @@ type ExecOptions struct {
 	Env     []string // variable names, values are read from the docker process env
 }
 
-// Target is where commands run: a compose service or a plain container.
+// Target is where commands run. Compose is the only implementation; tests fake it.
 type Target interface {
 	fmt.Stringer
 	// Dir is the directory docker must run from.
@@ -31,7 +32,19 @@ type Target interface {
 	ExecArgs(opts ExecOptions, argv []string) []string
 	// ContainerID identifies the running container, for docker cp and exec.
 	ContainerID() (string, error)
+	// Mounts lists the mounts of the running container.
+	Mounts() ([]Mount, error)
 }
+
+// Mount is a mount of a container, as docker inspect reports it. Source is a host path for binds.
+type Mount struct {
+	Type        string
+	Source      string
+	Destination string
+}
+
+// MountBind is the Mount.Type of a bind mount.
+const MountBind = "bind"
 
 func commonExecFlags(opts ExecOptions) []string {
 	var args []string
@@ -75,6 +88,7 @@ type Compose struct {
 	Files       []string
 	ProjectName string
 	Service     string
+	id          string // last container seen running, so one invocation asks compose once
 }
 
 func (c *Compose) String() string { return "compose service " + c.Service }
@@ -91,13 +105,19 @@ func (c *Compose) base() []string {
 	return args
 }
 
+// IsRunning always asks compose.
 func (c *Compose) IsRunning() bool {
+	c.id = ""
 	_, err := c.ContainerID()
 	return err == nil
 }
 
 // ContainerID returns the first container of the service; scaled services are not distinguished.
+// It reuses the container found by the last IsRunning or ContainerID call, until EnsureUp.
 func (c *Compose) ContainerID() (string, error) {
+	if c.id != "" {
+		return c.id, nil
+	}
 	out, err := output(c.Runner, c.ProjectDir, append(c.base(), "ps", "--status", "running", "--quiet", c.Service)...)
 	if err != nil {
 		return "", err
@@ -106,10 +126,12 @@ func (c *Compose) ContainerID() (string, error) {
 	if id == "" {
 		return "", fmt.Errorf("%s is not running", c)
 	}
+	c.id = id
 	return id, nil
 }
 
 func (c *Compose) EnsureUp(env []string, stderr io.Writer) error {
+	c.id = ""
 	if env == nil {
 		env = os.Environ()
 	}
@@ -127,33 +149,18 @@ func (c *Compose) ExecArgs(opts ExecOptions, argv []string) []string {
 	return append(args, argv...)
 }
 
-// Container targets an existing container by name or id. It is started, never created.
-type Container struct {
-	Runner     Runner
-	ProjectDir string
-	Name       string
-}
-
-func (c *Container) String() string { return "container " + c.Name }
-func (c *Container) Dir() string    { return c.ProjectDir }
-
-func (c *Container) IsRunning() bool {
-	out, err := output(c.Runner, c.ProjectDir, "inspect", "--format", "{{.State.Running}}", c.Name)
-	return err == nil && out == "true"
-}
-
-func (c *Container) ContainerID() (string, error) { return c.Name, nil }
-
-func (c *Container) EnsureUp(env []string, stderr io.Writer) error {
-	return run(c.Runner, c.ProjectDir, env, io.Discard, stderr, "start", c.Name)
-}
-
-func (c *Container) ExecArgs(opts ExecOptions, argv []string) []string {
-	args := []string{"exec", "--interactive"}
-	if opts.TTY {
-		args = append(args, "--tty")
+func (c *Compose) Mounts() ([]Mount, error) {
+	id, err := c.ContainerID()
+	if err != nil {
+		return nil, err
 	}
-	args = append(args, commonExecFlags(opts)...)
-	args = append(args, c.Name)
-	return append(args, argv...)
+	out, err := output(c.Runner, c.ProjectDir, "inspect", "--format", "{{json .Mounts}}", id)
+	if err != nil {
+		return nil, err
+	}
+	var mounts []Mount
+	if err := json.Unmarshal([]byte(out), &mounts); err != nil {
+		return nil, fmt.Errorf("reading the mounts of %s: %w", c, err)
+	}
+	return mounts, nil
 }

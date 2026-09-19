@@ -105,11 +105,10 @@ func TestValidate(t *testing.T) {
 global: {user: "1000:1000", env: {deny: [A], deny_prefixes: [B_], allow: [C], vars: {D: 1}}}
 aliases:
   php: {service: tools, path_mapping: {.: /app, ./lib: /lib}, user: host}
-  node: {container: node, user: www-data}
+  node: {service: node, user: www-data}
 `, nil},
 		{"no aliases", `global: {}`, nil},
-		{"target required", `aliases: {php: {}}`, []string{"aliases.php: one of service or container is required"}},
-		{"target exclusive", `aliases: {php: {service: a, container: b}}`, []string{"aliases.php: service and container are mutually exclusive"}},
+		{"service required", `aliases: {php: {}}`, []string{"aliases.php.service: is required"}},
 		{"bad names", `aliases: {dockshim: {service: a}, "a/b": {service: a}}`, []string{
 			`aliases.a/b: invalid alias name`,
 			`aliases.dockshim: invalid alias name`,
@@ -147,10 +146,6 @@ aliases: {php: {service: a, path_translation: {enabled: "false", max_copy_mb: "$
 			`global.path_translation.max_copy_mb: must be a positive integer, got "0"`,
 			`global.path_translation.allow[0]: host path "rel" must be absolute`,
 		}},
-		{"compose without service", `
-compose: {files: [c.yaml]}
-aliases: {php: {container: a}}
-`, []string{"compose: set but no alias uses a service"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -209,8 +204,13 @@ aliases:
   php:
     service: tools
     path_mapping: {.: /app}
+  inferred:
+    service: tools
+  unmapped:
+    service: tools
+    path_mapping: {}
   node:
-    container: node
+    service: node
     path_mapping: {assets: /assets/build, ./lib: /app/lib}
     user: 1001
     env:
@@ -234,6 +234,10 @@ aliases:
 	php, node := p.Aliases["php"], p.Aliases["node"]
 	if php.User != "1000" || node.User != "1001" {
 		t.Errorf("users: php=%q node=%q", php.User, node.User)
+	}
+	// Only a missing path_mapping is inferred: an empty one maps nothing.
+	if inf, un := p.Aliases["inferred"], p.Aliases["unmapped"]; php.InferPathMapping || !inf.InferPathMapping || un.InferPathMapping || len(un.PathMapping) != 0 {
+		t.Errorf("infer: php=%v inferred=%v unmapped=%v", php.InferPathMapping, inf.InferPathMapping, un.InferPathMapping)
 	}
 	if !slices.Equal(php.PathMapping, pathmap.Map{{Host: root, Container: "/app"}}) {
 		t.Errorf("php mapping = %v", php.PathMapping)

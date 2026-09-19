@@ -8,7 +8,7 @@ grep 'dockshim shim' .dockshim/bin/php
 grep 'run --shim "\$0" php "\$@"' .dockshim/bin/php
 
 # A symlink for node, in the same directory.
-exec dockshim config node
+exec dockshim config --full node
 stdout 'shim_mode: symlink'
 exec test -L .dockshim/bin/node
 
@@ -35,7 +35,7 @@ exec dockshim install
 stdout '^created: node, php$'
 stdout '^removed: gone$'
 ! exists .dockshim/bin/gone
-exec dockshim config php
+exec dockshim config --full php
 stdout 'shim_mode: symlink'
 exec test -L .dockshim/bin/php
 ! exec test -L .dockshim/bin/node

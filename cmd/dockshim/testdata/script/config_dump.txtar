@@ -1,9 +1,14 @@
+# The default output is a summary: defaults are left out, paths are relative to the root.
 exec dockshim config
-cmpenv stdout want.yaml
+cmpenv stdout want.txt
 
 exec dockshim config node
-! stdout 'php:'
-stdout '^    container: node$'
+! stdout '^php$'
+stdout '^  service +node$'
+
+# --full prints everything, defaults included.
+exec dockshim config --full
+cmpenv stdout want.yaml
 
 ! exec dockshim config nope
 stderr 'alias "nope" is not defined'
@@ -14,6 +19,9 @@ exec dockshim --config $WORK/.dockshim.yaml validate
 stdout 'is valid'
 
 -- .dockshim.yaml --
+compose:
+  files: [docker/compose.yaml]
+  project_name: demo
 global:
   user: 1000
   path_translation:
@@ -25,12 +33,12 @@ global:
 aliases:
   php:
     service: tools
-    path_mapping: {.: /app}
+    path_mapping: {.: /app, assets: /assets/build}
     env:
       vars: {A: alias}
   node:
-    shim_mode: symlink
-    container: node
+    shim_mode: wrapper
+    service: node
     user: "33:33"
     env:
       allow: [SSH_AUTH_SOCK]
@@ -38,15 +46,45 @@ aliases:
       enabled: false
       allow: [/data2/]
       follow_symlinks: true
+-- want.txt --
+config   $WORK/.dockshim.yaml
+bin_dir  .dockshim/bin
+compose  project_name demo
+         file docker/compose.yaml
+
+node
+  service           node
+  user              33:33
+  path_mapping      inferred from the container's bind mounts
+  shim_mode         wrapper
+  env               allow SSH_AUTH_SOCK
+                    deny FOO
+                    vars A
+  path_translation  disabled
+
+php
+  service           tools
+  user              1000
+  path_mapping      . → /app
+                    assets → /assets/build
+  env               deny FOO
+                    vars A
+  path_translation  allow /data
+                    max_copy_mb 5
 -- want.yaml --
 root: $WORK
 file: $WORK/.dockshim.yaml
 bin_dir: $WORK/.dockshim/bin
+compose:
+  files:
+    - $WORK/docker/compose.yaml
+  project_name: demo
 aliases:
   node:
-    shim_mode: symlink
-    container: node
+    shim_mode: wrapper
+    service: node
     user: "33:33"
+    infer_path_mapping: true
     path_mapping: []
     env:
       deny:
@@ -87,9 +125,12 @@ aliases:
     shim_mode: symlink
     service: tools
     user: "1000"
+    infer_path_mapping: false
     path_mapping:
       - host: $WORK
         container: /app
+      - host: $WORK/assets
+        container: /assets/build
     env:
       deny:
         - PATH

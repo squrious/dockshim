@@ -48,7 +48,7 @@ func execAlias(e *Env, proj *config.Project, name, shimPath, cwd string, args []
 		e.errorf("warning: %s is outside bin_dir %s, run `dockshim install` and update PATH", shimPath, proj.BinDir)
 	}
 
-	plan, err := execplan.Build(execplan.Input{
+	code, err := execplan.Run(execplan.Input{
 		Project: proj,
 		Alias:   alias,
 		Runner:  e.Runner,
@@ -57,12 +57,7 @@ func execAlias(e *Env, proj *config.Project, name, shimPath, cwd string, args []
 		Args:    append([]string{name}, args...),
 		TTY:     e.TTY,
 		Stderr:  e.Stderr,
-	})
-	if err != nil {
-		e.errorf("%v", err)
-		return 1
-	}
-	code, err := execplan.Execute(plan, execplan.Stdio{In: e.Stdin, Out: e.Stdout, Err: e.Stderr})
+	}, execplan.Stdio{In: e.Stdin, Out: e.Stdout, Err: e.Stderr})
 	if err != nil {
 		e.errorf("%v", err)
 		if code == 0 {

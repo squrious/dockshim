@@ -39,7 +39,8 @@ func run(m *testing.M) int {
 
 // fakeDocker records calls in $FAKE_DOCKER_STATE/calls and emulates the subcommands dockshim uses.
 // A target is running when $FAKE_DOCKER_STATE/running exists.
-// up and start save their environment in $FAKE_DOCKER_STATE/up-env.
+// up saves its environment in $FAKE_DOCKER_STATE/up-env.
+// inspect prints $FAKE_DOCKER_STATE/mounts as the container mounts, [] when missing.
 // Creating $FAKE_DOCKER_STATE/stop-on-exec makes the next exec stop the target and fail.
 // cp extracts the archive into $FAKE_DOCKER_STATE/cp, standing for the container /tmp.
 // exec prints what it received, and exits with $FAKE_EXEC_EXIT. It emulates `cat` (stdin, or
@@ -55,8 +56,8 @@ fi
 sub=$1; shift
 case "$sub" in
   ps) [ -e "$state/running" ] && echo abc123; exit 0;;
-  inspect) if [ -e "$state/running" ]; then echo true; else echo false; fi; exit 0;;
-  up|start) /usr/bin/env > "$state/up-env"; touch "$state/running"; exit 0;;
+  inspect) if [ -e "$state/mounts" ]; then /bin/cat "$state/mounts"; else echo '[]'; fi; exit 0;;
+  up) /usr/bin/env > "$state/up-env"; touch "$state/running"; exit 0;;
   cp)
     [ "$1 $2" = "--archive -" ] || { echo "fake: unexpected cp $*" >&2; exit 99; }
     /bin/mkdir -p "$state/cp" && exec /usr/bin/tar -xf - -C "$state/cp" --no-same-owner;;

@@ -30,4 +30,4 @@ aliases:
 -- config2.yaml --
 aliases:
   php: {service: tools}
-  node: {container: node}
+  node: {service: node}

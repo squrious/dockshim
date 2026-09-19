@@ -1,13 +1,17 @@
 ! exec dockshim validate
 stderr 'invalid config:'
-stderr 'aliases.both: service and container are mutually exclusive'
-stderr 'aliases.none: one of service or container is required'
+stderr 'aliases.none.service: is required'
 stderr 'aliases.php.path_mapping\[\.\]: container path "app" must be absolute'
 stderr 'global.user: invalid user'
 
 cd $WORK/unknown
 ! exec dockshim validate
 stderr 'field servce not found'
+
+# Aliases only target compose services.
+cd $WORK/container
+! exec dockshim validate
+stderr 'field container not found'
 
 cd $WORK/ambiguous
 ! exec dockshim validate
@@ -25,7 +29,6 @@ stderr 'unknown command "bogus"'
 global:
   user: "not valid"
 aliases:
-  both: {service: a, container: b}
   none: {}
   php:
     service: a
@@ -33,6 +36,9 @@ aliases:
 -- unknown/.dockshim.yaml --
 aliases:
   php: {servce: a}
+-- container/.dockshim.yaml --
+aliases:
+  node: {container: node}
 -- ambiguous/.dockshim.yaml --
 aliases: {php: {service: a}}
 -- ambiguous/.dockshim/config.yaml --

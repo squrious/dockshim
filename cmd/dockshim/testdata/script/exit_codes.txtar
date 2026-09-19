@@ -1,0 +1,41 @@
+exec dockshim install
+env PATH=$WORK/.dockshim/bin${:}$PATH
+
+# Exit codes are propagated.
+env FAKE_EXEC_EXIT=42
+exec sh -c 'php; echo code=$?'
+stdout '^code=42$'
+! stderr .
+env FAKE_EXEC_EXIT=
+
+# The target stops while the command runs: the command is not run again, and a warning tells
+# the failure may not come from the command.
+exists $FAKE_DOCKER_STATE/running
+rm $FAKE_DOCKER_STATE/calls
+exec touch $FAKE_DOCKER_STATE/stop-on-exec
+exec sh -c 'php; echo code=$?'
+stdout '^code=1$'
+stderr '^dockshim: warning: compose service tools is not running anymore: exit status 1 may come from the container stopping, not from the command$'
+exec sh -c 'grep -c "exec" $FAKE_DOCKER_STATE/calls'
+stdout '^1$'
+! grep 'up --detach' $FAKE_DOCKER_STATE/calls
+
+# The next call starts it again.
+exec php
+grep 'up --detach' $FAKE_DOCKER_STATE/calls
+
+# A command failing while the target keeps running gets no warning.
+env FAKE_EXEC_EXIT=1
+exec sh -c 'php; echo code=$?'
+stdout '^code=1$'
+! stderr .
+
+# dockshim run behaves like the shim, and leaves flags to the aliased command.
+env FAKE_EXEC_EXIT=3
+exec sh -c 'dockshim run php --version -c x; echo code=$?'
+stdout '^cmd php --version -c x$'
+stdout '^code=3$'
+
+-- .dockshim.yaml --
+aliases:
+  php: {service: tools}

@@ -19,7 +19,7 @@ func TestInterpolatesFromEnviron(t *testing.T) {
 		Environ: []string{"DOCKSHIM_TEST_SVC=tools"},
 		Getwd:   func() (string, error) { return root, nil },
 	}
-	if code := Main([]string{"dockshim", "config", "php"}, e); code != 0 {
+	if code := Main([]string{"dockshim", "config", "--full", "php"}, e); code != 0 {
 		t.Fatalf("code = %d, stderr = %s", code, stderr.String())
 	}
 	if !strings.Contains(stdout.String(), "service: tools") {

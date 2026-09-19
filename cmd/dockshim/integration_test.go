@@ -117,7 +117,7 @@ func must(t *testing.T, err error) {
 	}
 }
 
-// commonChecks exercises an alias named sh mapped to /app. stop stops the target, to check auto start;
+// commonChecks exercises an alias named sh whose project root is mapped to /app. stop stops the target, to check auto start;
 // it runs last.
 func commonChecks(t *testing.T, root string, stop func()) {
 	sub := filepath.Join(root, "sub")
@@ -187,43 +187,33 @@ func commonChecks(t *testing.T, root string, stop func()) {
 	})
 }
 
-func TestIntegrationContainer(t *testing.T) {
-	eachShimMode(t, func(t *testing.T, mode string) {
-		name := fmt.Sprintf("dockshim-it-%d", time.Now().UnixNano())
-		root := project(t, mode, `
-aliases:
-  sh:
-    container: `+name+`
-    path_mapping: {.: /app}
-`, map[string]string{})
-		docker(t, root, "run", "--detach", "--init", "--name", name, "--workdir", "/", "--volume", root+":/app", image, "sleep", "infinity")
-		t.Cleanup(func() { _ = exec.Command("docker", "rm", "--force", name).Run() })
-
-		commonChecks(t, root, func() { docker(t, root, "stop", "--time", "0", name) })
-	})
-}
-
 func TestIntegrationCompose(t *testing.T) {
 	eachShimMode(t, func(t *testing.T, mode string) {
-		root := composeProject(t, mode, fmt.Sprintf("dockshim-it-%d", time.Now().UnixNano()))
-		t.Cleanup(func() {
-			cmd := exec.Command("docker", "compose", "down", "--volumes", "--timeout", "0")
-			cmd.Dir = root
-			_ = cmd.Run()
-		})
+		// Mappings inferred from the compose volumes must match the explicit ones.
+		for _, c := range []struct{ name, mapping string }{{"inferred", ""}, {"explicit", "path_mapping: {.: /app}"}} {
+			t.Run(c.name, func(t *testing.T) {
+				root := composeProject(t, mode, fmt.Sprintf("dockshim-it-%d", time.Now().UnixNano()), c.mapping)
+				t.Cleanup(func() {
+					cmd := exec.Command("docker", "compose", "down", "--volumes", "--timeout", "0")
+					cmd.Dir = root
+					_ = cmd.Run()
+				})
 
-		commonChecks(t, root, func() { docker(t, root, "compose", "stop", "--timeout", "0") })
+				commonChecks(t, root, func() { docker(t, root, "compose", "stop", "--timeout", "0") })
+			})
+		}
 	})
 }
 
-func composeProject(t *testing.T, mode, name string) string {
+// composeProject mounts the project root at /app, and /etc/hostname, which is outside it.
+func composeProject(t *testing.T, mode, name, mapping string) string {
 	return project(t, mode, `
 compose:
   project_name: `+name+`
 aliases:
   sh:
     service: tools
-    path_mapping: {.: /app}
+    `+mapping+`
 `, map[string]string{
 		"compose.yaml": `
 name: ` + name + `
@@ -233,7 +223,7 @@ services:
     init: true
     command: [sleep, infinity]
     working_dir: /
-    volumes: [".:/app"]
+    volumes: [".:/app", "/etc/hostname:/host-hostname:ro"]
 `,
 	})
 }

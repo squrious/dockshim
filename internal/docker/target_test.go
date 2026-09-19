@@ -1,7 +1,6 @@
 package docker
 
 import (
-	"fmt"
 	"io"
 	"slices"
 	"strings"
@@ -14,7 +13,7 @@ type call struct {
 	env  string
 }
 
-// fakeRunner answers "ps"/"inspect" according to running, and records calls.
+// fakeRunner answers "ps" according to running, and "inspect" with fixed mounts, and records calls.
 // With fail set, every call exits with it.
 type fakeRunner struct {
 	running bool
@@ -32,7 +31,7 @@ func (f *fakeRunner) Run(c Cmd) (int, error) {
 	case slices.Contains(c.Args, "ps") && f.running:
 		out = "abc123\n"
 	case c.Args[0] == "inspect":
-		out = fmt.Sprintf("%v\n", f.running)
+		out = `[{"Type":"volume","Source":"/var/lib/docker/volumes/v/_data","Destination":"/data","RW":true},{"Type":"bind","Source":"/proj","Destination":"/app"}]` + "\n"
 	}
 	_, err := io.WriteString(c.Stdout, out)
 	return 0, err
@@ -82,37 +81,39 @@ func TestContainerID(t *testing.T) {
 	if id, err := c.ContainerID(); id != "abc123" || err != nil {
 		t.Fatalf("id=%q err=%v", id, err)
 	}
-	// A failing docker is reported as such, not as a stopped service.
+	// The id is reused until IsRunning asks compose again.
 	r.fail = 125
+	if id, err := c.ContainerID(); id != "abc123" || err != nil || len(r.calls) != 2 {
+		t.Fatalf("id=%q err=%v calls=%d", id, err, len(r.calls))
+	}
+	if c.IsRunning() {
+		t.Fatal("should not be running")
+	}
+	// A failing docker is reported as such, not as a stopped service.
 	if _, err := c.ContainerID(); err == nil || !strings.Contains(err.Error(), "exit status 125") {
 		t.Fatalf("err=%v", err)
 	}
 }
 
-func TestContainer(t *testing.T) {
+func TestComposeMounts(t *testing.T) {
 	r := &fakeRunner{running: true}
-	c := &Container{Runner: r, ProjectDir: "/proj", Name: "node"}
-	if !c.IsRunning() {
-		t.Fatal("should be running")
-	}
-	if err := c.EnsureUp([]string{"APP_ENV=dev"}, io.Discard); err != nil {
+	c := &Compose{Runner: r, ProjectDir: "/proj", Service: "tools"}
+	mounts, err := c.Mounts()
+	if err != nil {
 		t.Fatal(err)
 	}
-	want := []call{
-		{"/proj", "inspect --format {{.State.Running}} node", ""},
-		{"/proj", "start node", "APP_ENV=dev"},
+	want := []Mount{{Type: "volume", Source: "/var/lib/docker/volumes/v/_data", Destination: "/data"}, {Type: "bind", Source: "/proj", Destination: "/app"}}
+	if !slices.Equal(mounts, want) {
+		t.Fatalf("mounts = %+v", mounts)
 	}
-	if !slices.Equal(r.calls, want) {
-		t.Fatalf("calls = %v", r.calls)
+	if got := r.calls[1].args; got != "inspect --format {{json .Mounts}} abc123" {
+		t.Fatalf("inspect call = %s", got)
 	}
 	r.running = false
 	if c.IsRunning() {
 		t.Fatal("should not be running")
 	}
-	if got := strings.Join(c.ExecArgs(ExecOptions{}, []string{"node"}), " "); got != "exec --interactive node node" {
-		t.Fatalf("exec args = %s", got)
-	}
-	if got := strings.Join(c.ExecArgs(ExecOptions{TTY: true, Workdir: "/w"}, []string{"node"}), " "); got != "exec --interactive --tty --workdir /w node node" {
-		t.Fatalf("exec args = %s", got)
+	if _, err := c.Mounts(); err == nil {
+		t.Fatal("expected error when not running")
 	}
 }

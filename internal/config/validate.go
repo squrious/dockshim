@@ -48,20 +48,15 @@ func (f *File) Validate() error {
 	validateEnv(add, "global.env", f.Global.Env)
 	validatePathTranslation(add, "global.path_translation", f.Global.PathTranslation)
 
-	usesCompose := false
 	for _, name := range sortedKeys(f.Aliases) {
 		a := f.Aliases[name]
 		field := "aliases." + name
 		if !aliasNameRe.MatchString(name) || name == ToolName {
 			add(field, "invalid alias name (must be a plain file name, other than %q)", ToolName)
 		}
-		switch {
-		case a.Service == "" && a.Container == "":
-			add(field, "one of service or container is required")
-		case a.Service != "" && a.Container != "":
-			add(field, "service and container are mutually exclusive")
+		if a.Service == "" {
+			add(field+".service", "is required")
 		}
-		usesCompose = usesCompose || a.Service != ""
 
 		seen := map[string]string{}
 		for _, host := range sortedKeys(a.PathMapping) {
@@ -84,10 +79,6 @@ func (f *File) Validate() error {
 		validateEnv(add, field+".env", a.Env)
 		validatePathTranslation(add, field+".path_translation", a.PathTranslation)
 	}
-	if f.Compose != nil && !usesCompose {
-		add("compose", "set but no alias uses a service")
-	}
-
 	if len(problems) > 0 {
 		return &ValidationError{Problems: problems}
 	}

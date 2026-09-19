@@ -96,8 +96,8 @@ func newFixture(t *testing.T) *fixture {
 	}
 	must(t, os.Symlink("b.txt", filepath.Join(f.tmp, "dir", "link")))
 	f.alias = &config.ResolvedAlias{
-		Container: "ctr",
-		User:      "1000:1001",
+		Service: "tools",
+		User:    "1000:1001",
 		PathMapping: pathmap.Map{
 			{Host: f.proj, Container: "/app"},
 			{Host: filepath.Join(f.proj, "assets"), Container: "/assets/build"},
@@ -139,6 +139,7 @@ func (f *fixture) build(t *testing.T, cwd string, args ...string) (*Plan, []stri
 		Project:   &config.Project{Root: f.proj},
 		Alias:     f.alias,
 		Runner:    f.runner,
+		Target:    &fakeTarget{},
 		Cwd:       cwd,
 		Args:      append([]string{"php"}, args...),
 		Stderr:    &stderr,

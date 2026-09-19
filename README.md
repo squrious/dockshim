@@ -31,7 +31,7 @@ Put the config in `.dockshim.yaml` or `.dockshim/config.yaml` at the project roo
 
 ```yaml
 bin_dir: .dockshim/bin          # default
-compose:                        # optional, for service aliases
+compose:                        # optional
   files: [compose.yaml]
   project_name: my-project
 global:
@@ -43,17 +43,24 @@ global:
     vars: {APP_ENV: dev}
 aliases:
   php:
-    service: tools              # compose service...
-    path_mapping:
+    service: tools              # compose service
+    path_mapping:               # optional, see below
       .: /app                   # host paths are relative to the project root
   node:
-    container: my-node          # ...or a plain container (mutually exclusive)
-    path_mapping: {assets: /assets/build}
+    service: node
     user: 1001                  # overrides global
     env:
       vars: {NODE_ENV: dev}     # merged over global vars
       deny: [BAZ]               # appended
 ```
+
+### Path mapping
+
+`path_mapping` tells which host directories are visible where in the container. It gives the working directory (`--workdir`) and drives path translation.
+
+Without it, dockshim reads the bind mounts of the running container (`docker inspect`) and maps those inside the project directory. Mounts from elsewhere, such as `/var/run/docker.sock`, are skipped silently; `dockshim config` lists them while the service runs. Set `path_mapping`, even to `{}`, to choose the mappings yourself: inference is then off.
+
+> **Limited support:** inference compares the mount sources docker reports with the project path. With a remote daemon, or Docker Desktop when it reports bind sources under its own paths (as it may for WSL distributions), nothing matches and nothing is mapped. Set `path_mapping` explicitly there.
 
 ### Path translation
 
@@ -102,7 +109,7 @@ A variable that is unset and has no default is an error. Use `${VAR:-}` to allow
 |---|---|
 | `dockshim init [-d dir] [--flat] [--force]` | Create a starter config in `.dockshim/config.yaml` (`--flat`: `.dockshim.yaml`) |
 | `dockshim install` | Create the alias entry points and remove stale ones |
-| `dockshim config [alias]` | Print the resolved configuration |
+| `dockshim config [alias] [--full]` | Summarise the resolved configuration (`--full`: everything, as YAML) |
 | `dockshim validate` | Validate the configuration |
 | `dockshim run <alias> [args]` | Run an alias without its shim |
 
