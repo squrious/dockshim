@@ -11,7 +11,7 @@ import (
 )
 
 // InferMappings reads the mounts of the running target and maps the bind mounts whose source is
-// in the project root (ADR 0009). It also returns the sources of the bind mounts skipped for
+// in the project root (ADR 0008). It also returns the sources of the bind mounts skipped for
 // being outside it. Volumes and tmpfs are ignored.
 func InferMappings(t docker.Target, root string) (pathmap.Map, []string, error) {
 	mounts, err := t.Mounts()

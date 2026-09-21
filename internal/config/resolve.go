@@ -45,7 +45,7 @@ type ResolvedAlias struct {
 	Service  string `yaml:"service"`
 	User     string `yaml:"user"`
 	// InferPathMapping is set when the config has no path_mapping: the mappings are then read from
-	// the container's bind mounts at run time (ADR 0009).
+	// the container's bind mounts at run time (ADR 0008).
 	InferPathMapping bool                    `yaml:"infer_path_mapping"`
 	PathMapping      pathmap.Map             `yaml:"path_mapping"`
 	Env              envfilter.Rules         `yaml:"env"`

@@ -1,23 +1,15 @@
 # 3. Config location and discovery
 
-Status: accepted (2026-09-16)
-
 ## Decision
-- The config is `.dockshim.yaml` or `.dockshim/config.yaml` (`.yml` also accepted). If a directory has more than one, that is an error. The project root is the directory that owns the config.
-- **Alias mode** walks up from the shim's own directory first, then from cwd. When argv[0] is a bare name, the shim is found through PATH and must resolve to dockshim.
-- **Manager mode** walks up from cwd. `--config` overrides discovery.
-- dockshim doesn't read any env vars of its own.
-- Paths are resolved against the real (symlink-free) root, so they compare with `os.Getwd`.
-- The YAML is decoded strictly (unknown keys are errors). All validation problems are reported at once, each with its YAML path.
-
-- `dockshim init` writes `.dockshim/config.yaml` by default and `.dockshim.yaml` with `--flat`.
-  - It never creates a second config file next to an existing one.
-  - It overwrites an existing file only with `--force`.
-  - In the default mode it also writes `.dockshim/.gitignore` to ignore `bin/`.
-- A config with no aliases is valid, so the commented starter template validates as is.
+- The config is `.dockshim.yaml` or `.dockshim/config.yaml` (`.yml` also works). More than one in a directory is an error. The directory that owns it is the project root.
+- Alias mode walks up from the shim's own directory first, then from cwd. A bare `argv[0]` is resolved through PATH.
+- Manager mode walks up from cwd. `--config` overrides discovery.
+- dockshim reads no environment variables of its own.
+- Paths are resolved against the real (symlink-free) root.
+- Decoding is strict. Every validation problem is reported at once, each with its YAML path.
 
 ## Why
-- IDEs launch the shims from arbitrary directories. Anchoring on the shim's location finds the right project anyway.
+IDEs launch shims from arbitrary directories. Anchoring on the shim's location finds the right project anyway.
 
 ## Consequences
-- The workdir is the cwd translated through the longest matching `path_mapping`. When no mapping matches (e.g. an IDE running from `/`), no `--workdir` is passed and the container's default applies.
+The workdir is cwd translated through the longest matching path mapping (explicit or inferred, ADR 8). When none matches, no `--workdir` is passed.

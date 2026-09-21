@@ -1,14 +1,12 @@
 # 1. Go, driving the docker CLI
 
-Status: accepted (2026-09-16)
-
 ## Decision
-- Written in Go. It builds to a single static binary, and yaml.v3 and cobra are mature. The toolchain is pinned in the project `mise.toml`, and tasks are mise tasks.
+- Written in Go, with the toolchain and tasks in the project `mise.toml`.
 - dockshim runs the `docker` / `docker compose` binaries instead of using the Engine SDK.
 
 ## Why
-- The CLI already handles docker contexts, compose file discovery, `.env` files, TTY and stdin forwarding, which would be costly to reproduce with the SDK.
-- The binary stays small (~5 MB). Compose has no stable Go API anyway.
+- Go builds a single static binary, and cobra and yaml.v3 are mature.
+- The CLI already handles contexts, compose file discovery, `.env` files, TTY and stdin forwarding. Compose has no stable Go API.
 
 ## Consequences
-- `docker` must be in PATH. All calls go through `docker.Runner`, which tests replace with a fake.
+- `docker` must be in PATH. Every call goes through `docker.Runner`, which tests fake.

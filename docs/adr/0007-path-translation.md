@@ -1,40 +1,38 @@
 # 7. Path translation
 
-Status: accepted (2026-09-17), amended by [0008](0008-allowed-copy-paths-and-windows-paths.md)
-
 ## Principle
-A shim must behave like a host command, so **every path in an argument is a host path**. The only exceptions are paths that cannot be copied and whose container version means the same thing.
+A shim must behave like a host command, so **every path in an argument is a host path**. Each argument after the command name is checked. For `-x=value` / `--opt=value` only the value is checked; other options are left alone.
 
 ## Decision
-Each argument after the command name is checked. For `-x=value` / `--opt=value` only the value is; other options are left untouched.
+Windows paths are translated first (see below). Then:
 
 | Resolved argument | Result |
 |---|---|
-| Under a `path_mapping`, existing or not | Rewritten to its container path |
+| Under a path mapping, existing or not | Rewritten to its container path |
 | Missing | Unchanged, silently (usually an output path) |
-| Readable regular file within the size cap, in an allowed directory (0008) | Copied, and the argument points at the copy |
+| Readable regular file within the size cap, in an allowed directory | Copied, and the argument points at the copy |
 | Anywhere else | Unchanged, silently: it means the container's own path |
-| Directory, socket, device, FIFO, unreadable, or over the cap | Unchanged, with a warning |
+| In an allowed directory, but a directory, special, unreadable or over the cap | Unchanged, with a warning |
 
-**Working directory and relative paths.** `-w` already puts the container in the directory matching the host cwd, so a relative argument is kept **as typed** whenever that mapping resolves it to the same file. It is rewritten when it doesn't: when the cwd is not mapped, or when the path falls under a *different* mapping (`assets: /assets/build` while `.` maps to `/app`).
+- **Relative paths** are kept as typed when the workdir mapping resolves them to the same file, and rewritten otherwise.
+- **Allowed directories** are the system temporary ones (`TMPDIR`, `/tmp`, `/var/tmp`), the Windows ones seen through a drive mount under WSL, and `path_translation.allow`. Copying exists for the throwaway files a tool hands a command, so the default is closed.
+- **Windows temp is matched by shape** (`<drive>/Windows/Temp`, `<drive>/Users/<user>/AppData/Local/Temp`), not read from `%TEMP%`: running `cmd.exe` costs ~100 ms per call.
+- **Symlinks** are resolved. A target under a mapping gets rewritten. Otherwise, the target must be allowed, unless `follow_symlinks` is set, and its content is copied under the link's name.
+- **Files only.** A directory brings its own links, special files and size, so directories are never copied.
+- **Copying** uses one tar stream built in Go, extracted with `docker cp`, so the container needs no binary for it. Files go to `/tmp/dockshim-<random>/<n>/<name>`.
+  - A numeric user owns the files. For a named user, root owns them and they are made world-readable.
+  - `max_copy_mb` caps the total: a false positive must not block a command.
+  - `rm -rf` runs as root after the command. A failure there is only a warning.
 
-**Files only.** Directories are not copied. A directory is a whole tree, with its own links, special files, permissions and size, which would spread every constraint to everything inside it. Nothing needs it today. If it comes back, it should be an explicit opt-in.
+## Windows paths under WSL
+A Windows tool driving a shim passes Windows paths, which Go sees as relative:
+- `C:\x` / `C:/x` becomes the drive's mount point, read from `/proc/self/mountinfo` (`drvfs`, or `9p`/`virtiofs` with `aname=drvfs`). `wslpath` would cost a process per argument.
+- `\\wsl.localhost\<distro>\x`, `\\wsl$\...`, or their `//` spelling becomes `/x`, for `$WSL_DISTRO_NAME` only.
+- Anything unreachable stays as typed, with a warning: unlike other paths, it is certain to fail.
 
-**Symlinks.** The argument is resolved first. If the target is under a mapping, the argument is rewritten and nothing is copied. Otherwise the target's content is copied under the argument's own name, since tools care about the name. A broken symlink counts as missing.
+Detection is strict: `X:\`, `X:/`, a leading `\\`, or `//` followed by a distribution host. A `--filter` over namespaced PHP classes must not look like a path, and `//server/share` stays a Linux path.
 
-**Copying.**
-- One tar stream built in Go, extracted with `docker cp --archive - <id>:/tmp`, so the container needs no binary for the copy.
-- Layout: `/tmp/dockshim-<random>/<n>/<name>`, one numbered directory per file, so identical names don't collide. A path given twice is copied once.
-- Ownership: a numeric user (including `host`) owns the files, with `0700` directories. For a named user, files belong to root and are made world-readable.
-- A compose service is addressed through its first running container.
-- `max_copy_mb` (default 100) caps the total. Over the cap, the argument is left untouched with a warning instead of failing the command: a false positive must not block a command.
-
-**Cleanup.** `docker exec --user 0 <id> rm -rf /tmp/dockshim-<random>` runs after the command, on success or failure. A failure there is only a warning.
-
-**Configuration.** `path_translation: {enabled, allow, follow_symlinks, max_copy_mb}` (0008), globally or per alias. Scalars are overridden by the alias, `allow` is appended. Enabled by default.
-
-## Consequences / limits
-- Copies are one-way. A tool that rewrites a copied file in place (a fixer, `sed -i`) loses its changes; only the warning-free copy hints at it. Copying back could become an option.
-- When a path can't be copied, the argument falls back to meaning the container's path.
-- An argument that happens to name an existing host file in an allowed directory is copied even if the tool doesn't treat it as a path. The size cap limits the cost, and `enabled: false` turns the feature off.
-- Cleanup needs `rm` in the container.
+## Consequences
+- Copies are one-way: in-place edits (a fixer, `sed -i`) are lost.
+- An argument that happens to name a file in an allowed directory is copied, even when the tool doesn't treat it as a path. The size cap limits the cost.
+- Drive letters are unit tested only: `/proc/self/mountinfo` can't be injected into a `.txtar` scenario.
