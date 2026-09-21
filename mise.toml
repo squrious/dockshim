@@ -1,6 +1,8 @@
 [tools]
 go = "1.27.1"
 golangci-lint = "2.13.2"
+goreleaser = "2.18.2"
+actionlint = "1.7.12"
 
 [env]
 _.path = ["{{config_root}}/bin"]
@@ -19,8 +21,18 @@ run = "go test -tags integration -count=1 ./..."
 
 [tasks.lint]
 description = "Vet and lint"
-run = ["go vet ./...", "go vet -tags integration ./...", "golangci-lint run"]
+run = [
+  "go vet ./...",
+  "go vet -tags integration ./...",
+  "golangci-lint run",
+  "goreleaser check -q",
+  "actionlint",
+]
 
 [tasks.install]
 description = "Install dockshim into ~/.local/bin"
 run = "go build -trimpath -o ~/.local/bin/dockshim ./cmd/dockshim"
+
+[tasks.release-snapshot]
+description = "Build release archives locally into ./dist"
+run = "goreleaser release --snapshot --clean"

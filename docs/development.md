@@ -3,11 +3,12 @@
 The toolchain is pinned in `mise.toml`:
 
 ```bash
-mise install                 # Go and golangci-lint
+mise install                 # Go, golangci-lint, goreleaser, actionlint
 mise run build               # bin/dockshim
 mise run test                # unit and CLI tests, no docker needed
 mise run test-integration    # real docker, uses alpine:latest
-mise run lint                # go vet and golangci-lint
+mise run lint                # go vet, golangci-lint, goreleaser check, actionlint
+mise run release-snapshot    # release archives into dist/, nothing published
 ```
 
 ## Tests
@@ -19,3 +20,23 @@ mise run lint                # go vet and golangci-lint
 ## Commits
 
 Commits follow [Conventional Commits](https://www.conventionalcommits.org): `feat:`, `fix:`, `docs:`, `refactor:`, `test:`, `ci:`, `chore:`. A `!` or a `BREAKING CHANGE:` footer marks a breaking change.
+
+## Releasing
+
+Releases are automated with [release-please](https://github.com/googleapis/release-please) and [GoReleaser](https://goreleaser.com):
+
+1. Merge conventional commits into `main`. PRs should be squash-merged with a conventional title.
+2. release-please keeps a `chore(main): release X.Y.Z` PR open, with the version bump and the `CHANGELOG.md` entry.
+3. Merging that PR tags `vX.Y.Z` and creates the GitHub release. GoReleaser then attaches the linux/darwin archives and their checksums.
+
+Version bumps, while below 1.0:
+- `fix` bumps the patch.
+- `feat` and breaking changes bump the minor.
+
+Once the config schema and CLI are stable, a commit with a `Release-As: 1.0.0` footer makes 1.0.0. From then on, breaking changes bump the major.
+
+Overrides:
+- A `Release-As: x.y.z` footer forces the next version.
+- Pushing a `vX.Y.Z` tag yourself runs GoReleaser directly, without release-please.
+
+release-please needs "Allow GitHub Actions to create and approve pull requests", in the repository's Actions settings.

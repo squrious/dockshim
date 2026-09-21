@@ -1,0 +1,26 @@
+version: 2
+
+builds:
+  - main: ./cmd/dockshim
+    env: [CGO_ENABLED=0]
+    goos: [linux, darwin]
+    goarch: [amd64, arm64]
+    flags: [-trimpath]
+    ldflags:
+      - -s -w -X github.com/squrious/dockshim/internal/cli.Version={{.Version}}
+
+archives:
+  - files: [LICENSE, README.md, CHANGELOG.md]
+
+checksum:
+  name_template: checksums.txt
+
+changelog:
+  disable: true
+
+release:
+  github:
+    owner: squrious
+    name: dockshim
+  # release-please creates the release and its notes; GoReleaser only attaches the archives.
+  mode: keep-existing
