@@ -1,5 +1,10 @@
 # dockshim
 
+[![Release](https://img.shields.io/github/v/release/squrious/dockshim)](https://github.com/squrious/dockshim/releases/latest)
+[![CI](https://github.com/squrious/dockshim/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/squrious/dockshim/actions/workflows/ci.yml)
+[![Go version](https://img.shields.io/github/go-mod/go-version/squrious/dockshim)](go.mod)
+[![License: MIT](https://img.shields.io/github/license/squrious/dockshim)](LICENSE)
+
 Run commands inside Docker Compose services as if they were installed on the host.
 
 `php`, `composer` or `node` then run in your project's containers, both from your shell and from your IDE. The only thing on the host is one small binary. Each alias is an executable in a project directory, so tools that need a path to an interpreter can point at it.
