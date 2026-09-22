@@ -47,9 +47,6 @@ func printSummary(w io.Writer, p *config.Project, outside func(*config.ResolvedA
 		row("  ", "service", a.Service)
 		row("  ", "user", a.User)
 		row("  ", "path_mapping", mappingLines(p.Root, a, outside)...)
-		if a.ShimMode != config.ShimSymlink {
-			row("  ", "shim_mode", a.ShimMode)
-		}
 		row("  ", "env", envLines(a)...)
 		row("  ", "path_translation", translationLines(a.PathTranslation)...)
 	}

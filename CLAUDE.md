@@ -7,7 +7,7 @@
 
 # Project
 
-`dockshim`: a Go CLI that runs commands in Docker Compose services as if they were on the host. Each alias is an entry point in `bin_dir`: a symlink to the binary (alias name from argv[0]) or a `/bin/sh` wrapper calling `dockshim run --shim`. Config: `.dockshim.yaml` or `.dockshim/config.yaml`.
+`dockshim`: a Go CLI that runs commands in Docker Compose services as if they were on the host. Each alias is an entry point in `bin_dir`: a `/bin/sh` script running `dockshim run --shim "$0" <alias>`, with `dockshim` found through PATH. Config: `.dockshim.yaml` or `.dockshim/config.yaml`.
 
 ## Toolchain
 
@@ -19,18 +19,18 @@ Everything goes through the project `mise.toml`. Never modify the global mise co
 ## Layout
 
 - `cmd/dockshim`: `main` and the CLI end-to-end tests.
-- `internal/cli`: argv[0] dispatch, alias mode, cobra commands, `init` with its embedded `init.yaml` (keep it valid and in sync with the schema).
+- `internal/cli`: cobra commands, alias mode (`run --shim`), `init` with its embedded `init.yaml` (keep it valid and in sync with the schema).
 - `internal/config`: discovery, strict parse, interpolation, validation, resolution.
 - `internal/envfilter`, `internal/pathmap`, `internal/hostpath` (allowed copy dirs, WSL paths, `Real` for symlink-resolved comparison).
 - `internal/docker`: `Runner` (os/exec) and `Target` (implemented by `Compose`).
 - `internal/execplan`: `Run` → start service, infer mappings, `Build` a `Plan`, `Execute` it. Path translation is in `translate.go`.
-- `internal/shim`: create, prune and locate entry points, in both modes.
+- `internal/shim`: create and prune entry points.
 
 Injection rules:
 - I/O and environment go through `cli.Env`.
 - `config.Parse`/`Load` take a `LookupFunc`: never rely on the real env in tests.
 - `hostpath` reads the machine through its `Env`.
-- The only exceptions that read the machine directly: `hostpath.Detect`, `user: host` (`os.Getuid`) and `shim.Locate` (the real `PATH`).
+- The only exceptions that read the machine directly: `hostpath.Detect` and `user: host` (`os.Getuid`).
 
 ## Tests
 
@@ -38,4 +38,4 @@ Injection rules:
 - Every new user-facing behaviour gets a testscript scenario in `cmd/dockshim/testdata/script/*.txtar`. `TestMain` builds the real binary.
 - The fake `docker` (`fakeDocker` in `main_test.go`) logs calls to `$FAKE_DOCKER_STATE/calls`, emulates the running state, echoes exec flags and env, saves the `up` env in `up-env`, answers `inspect` from `mounts`, and extracts `cp` into `cp` (the container's `/tmp`). Inside it, call binaries by absolute path: shims in PATH would shadow them.
 - testscript has no tty: unit-test interactive paths with an injected `Prompter`.
-- Integration tests: `cmd/dockshim/integration_test.go` (`//go:build integration`), cleaned up with `t.Cleanup`. Add scenarios to `commonChecks`, so `eachShimMode` covers both modes.
+- Integration tests: `cmd/dockshim/integration_test.go` (`//go:build integration`), cleaned up with `t.Cleanup`. Add scenarios to `commonChecks`. Shims run the binary under test through PATH.

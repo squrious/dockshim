@@ -14,7 +14,6 @@ compose:                        # passed to every docker compose call (optional)
   project_name: my-project
 
 global:                         # defaults for every alias
-  shim_mode: symlink            # symlink (default) or wrapper
   user: host                    # default: uid:gid of the caller. Or 1000, "1000:1000", www-data
   env:
     deny: [FOO]                 # appended to the built-in denylist
@@ -34,7 +33,6 @@ aliases:
       .: /app
   node:
     service: node
-    shim_mode: wrapper          # overrides global
     user: 1001                  # overrides global
     env:
       vars: {NODE_ENV: dev}     # merged over global vars
@@ -43,13 +41,11 @@ aliases:
 
 In an alias, scalars override `global`, lists are appended and `vars` are merged.
 
-## Shim modes
+## Entry points
 
-`dockshim install` creates one entry point per alias:
-- `symlink` points to the dockshim binary. The alias name comes from `argv[0]`.
-- `wrapper` is a `/bin/sh` script calling `dockshim run --shim`, for filesystems without usable symlinks.
+`dockshim install` creates one `/bin/sh` script per alias in `bin_dir`. It runs `dockshim run --shim`, finding `dockshim` through `PATH`, so upgrading or moving the binary needs no reinstall. `dockshim` must therefore be in the `PATH` of whatever runs the shims, IDEs included.
 
-Both behave identically. A wrapper embeds the binary's path, so run `install` again after moving the binary.
+The scripts are generated: don't edit them, change the config and run `install` again.
 
 ## Environment forwarding
 

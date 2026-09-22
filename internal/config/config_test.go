@@ -109,7 +109,8 @@ aliases:
 `, nil},
 		{"no aliases", `global: {}`, nil},
 		{"service required", `aliases: {php: {}}`, []string{"aliases.php.service: is required"}},
-		{"bad names", `aliases: {dockshim: {service: a}, "a/b": {service: a}}`, []string{
+		{"bad names", `aliases: {dockshim: {service: a}, Dockshim: {service: a}, "a/b": {service: a}}`, []string{
+			`aliases.Dockshim: invalid alias name`,
 			`aliases.a/b: invalid alias name`,
 			`aliases.dockshim: invalid alias name`,
 		}},
@@ -133,10 +134,6 @@ aliases: {php: {service: a, env: {deny_prefixes: [""]}}}
 			`global.env.vars: invalid variable name "B-C"`,
 			`aliases.php.env.deny_prefixes[0]: invalid variable name ""`,
 		}},
-		{"shim mode", `
-global: {shim_mode: link}
-aliases: {php: {service: a, shim_mode: wrapper}}
-`, []string{`global.shim_mode: invalid mode "link" (expected symlink or wrapper)`}},
 		{"path translation", `
 global: {path_translation: {enabled: maybe, max_copy_mb: 0, allow: [rel], follow_symlinks: sometimes}}
 aliases: {php: {service: a, path_translation: {enabled: "false", max_copy_mb: "${X:-12}", allow: [/ok, 'C:\tmp']}}}
@@ -270,9 +267,6 @@ func TestResolveDefaults(t *testing.T) {
 	want := strconv.Itoa(os.Getuid()) + ":" + strconv.Itoa(os.Getgid())
 	if got := p.Aliases["php"].User; got != want {
 		t.Fatalf("user = %q, want %q", got, want)
-	}
-	if mode := p.Aliases["php"].ShimMode; mode != ShimSymlink {
-		t.Fatalf("shim mode = %q", mode)
 	}
 	pt := p.Aliases["php"].PathTranslation
 	if !pt.Enabled || pt.FollowSymlinks || pt.MaxCopyMB != DefaultMaxCopyMB || len(pt.Allow) != 0 {

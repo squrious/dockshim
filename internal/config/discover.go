@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	// ToolName is the binary name: argv[0] dispatch, alias names and messages depend on it.
+	// ToolName is the binary name: shims call it through PATH, and alias names and messages depend on it.
 	ToolName = "dockshim"
 	// DirName is the project directory holding the config file and, by default, bin_dir.
 	DirName = ".dockshim"

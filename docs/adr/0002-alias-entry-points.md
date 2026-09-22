@@ -1,5 +1,7 @@
 # 2. Alias entry points: symlinks or wrapper scripts
 
+Superseded by ADR 10.
+
 ## Decision
 - `dockshim install` creates one entry point per alias in `bin_dir`, in the mode `shim_mode` selects:
   - `symlink` (default): a link to the dockshim executable, where `basename(argv[0])` gives the alias. When that name is `dockshim`, the manager CLI runs.

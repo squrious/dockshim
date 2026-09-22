@@ -11,21 +11,6 @@ import (
 
 const exitUnknownAlias = 127
 
-func runAlias(argv0 string, args []string, e *Env) int {
-	cwd, err := e.cwd()
-	if err != nil {
-		e.errorf("%v", err)
-		return 1
-	}
-	shimPath := shim.Locate(argv0, e.Executable)
-	proj, err := e.discover(cwd, shimPath)
-	if err != nil {
-		e.errorf("%v", err)
-		return 1
-	}
-	return execAlias(e, proj, filepath.Base(argv0), shimPath, cwd, args)
-}
-
 // discover loads the config, looking next to the shim first: IDEs may run it from any directory.
 func (e *Env) discover(cwd, shimPath string) (*config.Project, error) {
 	var starts []string
@@ -69,7 +54,8 @@ func execAlias(e *Env, proj *config.Project, name, shimPath, cwd string, args []
 
 func unknownAlias(e *Env, proj *config.Project, name, shimPath string) int {
 	e.errorf("alias %q is not defined in %s", name, proj.File)
-	if shimPath == "" {
+	// --shim is free input: only our own scripts are reported as stale.
+	if shimPath == "" || !shim.IsShim(shimPath) {
 		return exitUnknownAlias
 	}
 	// Only shims in this project's bin_dir are candidates for removal.

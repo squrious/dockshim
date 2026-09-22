@@ -25,7 +25,7 @@ $ phpunit tests/    # workdir and path arguments are mapped into the container
 ## Requirements
 
 - Docker with the Compose v2 plugin (`docker compose`).
-- Linux, macOS or WSL. On filesystems without usable symlinks, entry points can be `/bin/sh` wrapper scripts.
+- Linux, macOS or WSL.
 
 ## Install
 
@@ -34,6 +34,8 @@ Download a binary from the [releases](https://github.com/squrious/dockshim/relea
 ```bash
 go install github.com/squrious/dockshim/cmd/dockshim@latest
 ```
+
+The entry points run `dockshim` from `PATH`: it must be there for whatever runs them, IDEs included.
 
 ## Quick start
 
@@ -59,7 +61,7 @@ export PATH="$PWD/.dockshim/bin:$PATH"   # or mise `_.path`, direnv `PATH_add`
 php -v
 ```
 
-Keep `.dockshim/bin/` out of git: the entry points reference a local binary. `dockshim init` writes a `.dockshim/.gitignore` for this.
+Keep `.dockshim/bin/` out of git: the entry points are generated. `dockshim init` writes a `.dockshim/.gitignore` for this.
 
 ## Commands
 

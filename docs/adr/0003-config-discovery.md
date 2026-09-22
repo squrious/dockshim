@@ -2,7 +2,7 @@
 
 ## Decision
 - The config is `.dockshim.yaml` or `.dockshim/config.yaml` (`.yml` also works). More than one in a directory is an error. The directory that owns it is the project root.
-- Alias mode walks up from the shim's own directory first, then from cwd. A bare `argv[0]` is resolved through PATH.
+- Alias mode walks up from the shim's own directory first, then from cwd. The shim passes its own path.
 - Manager mode walks up from cwd. `--config` overrides discovery.
 - dockshim reads no environment variables of its own.
 - Paths are resolved against the real (symlink-free) root.

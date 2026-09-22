@@ -1,0 +1,61 @@
+# Shims are /bin/sh scripts that run dockshim from PATH, passing their own path and alias.
+cd project
+exec dockshim install
+stdout '^created: node, php$'
+exec test -x .dockshim/bin/php
+! exec test -L .dockshim/bin/php
+grep '^#!/bin/sh$' .dockshim/bin/php
+grep 'do not edit' .dockshim/bin/php
+grep '^# dockshim shim format 1, alias "php"$' .dockshim/bin/php
+grep '^# created by dockshim .+$' .dockshim/bin/php
+grep '^exec dockshim run --shim "\$0" ''php'' "\$@"$' .dockshim/bin/php
+
+# A relative shim path still anchors discovery at the shim.
+cd $WORK
+exec project/.dockshim/bin/php -v
+stdout '^target tools$'
+stdout '^cmd php -v$'
+
+# Shims don't depend on the binary that created them.
+cd project
+exec sh -c 'mkdir $WORK/bin && cp "$(command -v dockshim)" $WORK/bin/'
+rm .dockshim/bin/php
+exec $WORK/bin/dockshim install
+stdout '^created: php$'
+! stderr .
+rm $WORK/bin/dockshim
+exec .dockshim/bin/php -v
+stdout '^cmd php -v$'
+
+# Without dockshim in PATH, shims fail and install warns.
+exec sh -c 'cp "$(command -v dockshim)" $WORK/bin/'
+mkdir $WORK/empty
+env PATH=$WORK/empty
+! exec .dockshim/bin/php -v
+stderr 'dockshim.*not found'
+exec $WORK/bin/dockshim install
+stderr 'warning: dockshim is not in PATH, the shims won''t find it'
+
+# A symlink left by an older dockshim is not a shim: install leaves it for the user to delete.
+rm .dockshim/bin/node
+symlink .dockshim/bin/node -> /old/place/dockshim
+exec $WORK/bin/dockshim install
+stderr 'skipped, not a dockshim shim: node'
+
+# shim_mode no longer exists.
+cp $WORK/old.yaml .dockshim.yaml
+! exec $WORK/bin/dockshim validate
+stderr 'shim_mode'
+
+-- project/.dockshim.yaml --
+aliases:
+  php:
+    service: tools
+    path_mapping: {.: /app}
+  node:
+    service: tools
+-- old.yaml --
+global:
+  shim_mode: wrapper
+aliases:
+  php: {service: tools}

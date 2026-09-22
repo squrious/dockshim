@@ -24,27 +24,29 @@ func must(t *testing.T, err error) {
 func staleSetup(t *testing.T) (shimPath string, e *Env, stderr *bytes.Buffer) {
 	t.Helper()
 	root := t.TempDir()
-	exe := filepath.Join(t.TempDir(), "dockshim")
-	must(t, os.WriteFile(exe, nil, 0o755))
 	must(t, os.WriteFile(filepath.Join(root, ".dockshim.yaml"), []byte("aliases: {php: {service: tools}}\n"), 0o644))
 	bin := filepath.Join(root, ".dockshim", "bin")
-	if _, err := shim.Install(bin, exe, []shim.Shim{{Name: "php"}, {Name: "gone"}}); err != nil {
+	if _, err := shim.Install(bin, "dev", []string{"php", "gone"}); err != nil {
 		t.Fatal(err)
 	}
 	stderr = &bytes.Buffer{}
 	e = &Env{
-		Stderr:     stderr,
-		Getwd:      func() (string, error) { return "/", nil },
-		Executable: exe,
+		Stderr: stderr,
+		Getwd:  func() (string, error) { return "/", nil },
 	}
 	return filepath.Join(bin, "gone"), e, stderr
+}
+
+// runShim runs dockshim the way the shim at p does.
+func runShim(p string, e *Env) int {
+	return Main([]string{"dockshim", "run", "--shim", p, filepath.Base(p)}, e)
 }
 
 func TestStaleShim(t *testing.T) {
 	t.Run("interactive, accepted", func(t *testing.T) {
 		p, e, stderr := staleSetup(t)
 		e.Interactive, e.Prompter = true, answer(true)
-		if code := Main([]string{p}, e); code != exitUnknownAlias {
+		if code := runShim(p, e); code != exitUnknownAlias {
 			t.Fatalf("code = %d", code)
 		}
 		if _, err := os.Lstat(p); !os.IsNotExist(err) {
@@ -58,7 +60,7 @@ func TestStaleShim(t *testing.T) {
 	t.Run("interactive, declined", func(t *testing.T) {
 		p, e, _ := staleSetup(t)
 		e.Interactive, e.Prompter = true, answer(false)
-		Main([]string{p}, e)
+		runShim(p, e)
 		if _, err := os.Lstat(p); err != nil {
 			t.Fatal("shim should be kept")
 		}
@@ -67,7 +69,7 @@ func TestStaleShim(t *testing.T) {
 	t.Run("non interactive", func(t *testing.T) {
 		p, e, stderr := staleSetup(t)
 		e.Prompter = answer(true)
-		if code := Main([]string{p}, e); code != exitUnknownAlias {
+		if code := runShim(p, e); code != exitUnknownAlias {
 			t.Fatalf("code = %d", code)
 		}
 		if _, err := os.Lstat(p); err != nil {
@@ -78,15 +80,32 @@ func TestStaleShim(t *testing.T) {
 		}
 	})
 
+	t.Run("a script that is not a shim is never removed", func(t *testing.T) {
+		p, e, stderr := staleSetup(t)
+		must(t, os.WriteFile(p, []byte("#!/bin/sh\n"), 0o755))
+		e.Interactive, e.Prompter = true, answer(true)
+		if code := runShim(p, e); code != exitUnknownAlias {
+			t.Fatalf("code = %d", code)
+		}
+		if _, err := os.Lstat(p); err != nil {
+			t.Fatal("foreign script should be kept")
+		}
+		if strings.Contains(stderr.String(), "stale shim") {
+			t.Fatalf("stderr = %s", stderr)
+		}
+	})
+
 	t.Run("shim outside bin_dir is never removed", func(t *testing.T) {
 		p, e, stderr := staleSetup(t)
 		other := filepath.Join(t.TempDir(), "gone")
-		must(t, os.Symlink(e.Executable, other))
+		content, err := os.ReadFile(p)
+		must(t, err)
+		must(t, os.WriteFile(other, content, 0o755))
 		// Config is still found through cwd.
 		root := filepath.Dir(filepath.Dir(filepath.Dir(p)))
 		e.Getwd = func() (string, error) { return root, nil }
 		e.Interactive, e.Prompter = true, answer(true)
-		Main([]string{other}, e)
+		runShim(other, e)
 		if _, err := os.Lstat(other); err != nil {
 			t.Fatal("foreign shim should be kept")
 		}

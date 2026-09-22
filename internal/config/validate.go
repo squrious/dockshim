@@ -43,7 +43,6 @@ func (f *File) Validate() error {
 			}
 		}
 	}
-	validateShimMode(add, "global.shim_mode", f.Global.ShimMode)
 	validateUser(add, "global.user", f.Global.User)
 	validateEnv(add, "global.env", f.Global.Env)
 	validatePathTranslation(add, "global.path_translation", f.Global.PathTranslation)
@@ -51,7 +50,8 @@ func (f *File) Validate() error {
 	for _, name := range sortedKeys(f.Aliases) {
 		a := f.Aliases[name]
 		field := "aliases." + name
-		if !aliasNameRe.MatchString(name) || name == ToolName {
+		// Case-insensitive: on such filesystems, a shim named like the tool would shadow it and exec itself.
+		if !aliasNameRe.MatchString(name) || strings.EqualFold(name, ToolName) {
 			add(field, "invalid alias name (must be a plain file name, other than %q)", ToolName)
 		}
 		if a.Service == "" {
@@ -74,7 +74,6 @@ func (f *File) Validate() error {
 				add(mf, "container path %q must be absolute", ctr)
 			}
 		}
-		validateShimMode(add, field+".shim_mode", a.ShimMode)
 		validateUser(add, field+".user", a.User)
 		validateEnv(add, field+".env", a.Env)
 		validatePathTranslation(add, field+".path_translation", a.PathTranslation)
@@ -83,12 +82,6 @@ func (f *File) Validate() error {
 		return &ValidationError{Problems: problems}
 	}
 	return nil
-}
-
-func validateShimMode(add func(string, string, ...any), field string, mode Scalar) {
-	if mode != "" && mode != ShimSymlink && mode != ShimWrapper {
-		add(field, "invalid mode %q (expected %s or %s)", mode, ShimSymlink, ShimWrapper)
-	}
 }
 
 func validateUser(add func(string, string, ...any), field string, u Scalar) {

@@ -1,4 +1,4 @@
-// Package cli dispatches between alias mode (invoked through a shim) and the dockshim manager commands.
+// Package cli implements the dockshim commands, including alias mode (`run --shim`, called by shims).
 package cli
 
 import (
@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path/filepath"
 	"strings"
 
 	"golang.org/x/term"
@@ -23,10 +22,8 @@ type Env struct {
 	Stdout, Stderr io.Writer
 	Environ        []string
 	Getwd          func() (string, error)
-	// Executable is the real path of the dockshim binary, which symlink shims point at. Empty when unknown.
-	Executable string
-	Runner     docker.Runner
-	Prompter   Prompter
+	Runner         docker.Runner
+	Prompter       Prompter
 	// Interactive is true when a human can answer prompts (stdin and stderr are terminals).
 	Interactive bool
 	// TTY is true when the container command should get a pseudo-terminal (stdin and stdout are terminals).
@@ -40,10 +37,6 @@ type Prompter interface {
 
 // SystemEnv returns the Env of the running process.
 func SystemEnv() *Env {
-	exe, _ := os.Executable()
-	if exe != "" {
-		exe = hostpath.Real(exe)
-	}
 	stdin, stdout, stderr := isTerm(os.Stdin), isTerm(os.Stdout), isTerm(os.Stderr)
 	return &Env{
 		Stdin:       os.Stdin,
@@ -51,7 +44,6 @@ func SystemEnv() *Env {
 		Stderr:      os.Stderr,
 		Environ:     os.Environ(),
 		Getwd:       os.Getwd,
-		Executable:  exe,
 		Runner:      docker.ExecRunner{},
 		Prompter:    ttyPrompter{},
 		Interactive: stdin && stderr,
@@ -83,12 +75,9 @@ func (ttyPrompter) Confirm(question string) (bool, error) {
 	return answer == "y" || answer == "yes", nil
 }
 
-// Main runs dockshim and returns the process exit code.
+// Main runs dockshim with its argv and returns the process exit code.
 func Main(args []string, e *Env) int {
-	if filepath.Base(args[0]) == config.ToolName {
-		return runManager(args[1:], e)
-	}
-	return runAlias(args[0], args[1:], e)
+	return runManager(args[1:], e)
 }
 
 func (e *Env) errorf(format string, args ...any) {

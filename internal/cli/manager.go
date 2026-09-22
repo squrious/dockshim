@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"os"
 	"path/filepath"
 	"runtime/debug"
 	"slices"
@@ -88,14 +89,7 @@ func newRoot(e *Env) *cobra.Command {
 				if err != nil {
 					return err
 				}
-				if e.Executable == "" {
-					return errors.New("cannot determine the dockshim executable path")
-				}
-				shims := make([]shim.Shim, 0, len(proj.Aliases))
-				for _, name := range slices.Sorted(maps.Keys(proj.Aliases)) {
-					shims = append(shims, shim.Shim{Name: name, Mode: proj.Aliases[name].ShimMode})
-				}
-				res, err := shim.Install(proj.BinDir, e.Executable, shims)
+				res, err := shim.Install(proj.BinDir, version(), slices.Sorted(maps.Keys(proj.Aliases)))
 				printList(cmd, "created", res.Created)
 				printList(cmd, "removed", res.Removed)
 				if len(res.Skipped) > 0 {
@@ -107,6 +101,9 @@ func newRoot(e *Env) *cobra.Command {
 				if !inPath(e.Environ, proj.BinDir) {
 					rel, _ := filepath.Rel(proj.Root, proj.BinDir)
 					cmd.Printf("\n%s is not in PATH. For instance:\n  mise.toml: [env] _.path = [\"{{config_root}}/%s\"]\n  .envrc:    PATH_add %s\n", proj.BinDir, rel, rel)
+				}
+				if !commandInPath(e.Environ, config.ToolName) {
+					e.errorf("warning: %s is not in PATH, the shims won't find it", config.ToolName)
 				}
 				return nil
 			},
@@ -183,11 +180,14 @@ func newRunCmd(e *Env, load func(shimPath string) (*config.Project, error)) *cob
 		Short: "Run an alias, as if invoked through its shim",
 		Args:  cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			proj, err := load(shimPath)
+			cwd, err := e.cwd()
 			if err != nil {
 				return err
 			}
-			cwd, err := e.cwd()
+			if shimPath != "" && !filepath.IsAbs(shimPath) {
+				shimPath = filepath.Join(cwd, shimPath)
+			}
+			proj, err := load(shimPath)
 			if err != nil {
 				return err
 			}
@@ -197,8 +197,8 @@ func newRunCmd(e *Env, load func(shimPath string) (*config.Project, error)) *cob
 			return nil
 		},
 	}
-	// Wrapper scripts pass their own path, so discovery is anchored like argv[0] dispatch.
-	cmd.Flags().StringVar(&shimPath, "shim", "", "path of the wrapper script this call comes from")
+	// Shims pass their own path, so that discovery is anchored at the shim.
+	cmd.Flags().StringVar(&shimPath, "shim", "", "path of the shim this call comes from")
 	_ = cmd.Flags().MarkHidden("shim")
 	// Everything after the alias name belongs to the aliased command.
 	cmd.Flags().SetInterspersed(false)
@@ -211,10 +211,26 @@ func printList(cmd *cobra.Command, label string, items []string) {
 	}
 }
 
-func inPath(environ []string, dir string) bool {
+// pathDirs returns the directories of the first PATH in environ, as getenv would.
+func pathDirs(environ []string) []string {
 	for _, kv := range environ {
 		if v, ok := strings.CutPrefix(kv, "PATH="); ok {
-			return slices.Contains(filepath.SplitList(v), dir)
+			return filepath.SplitList(v)
+		}
+	}
+	return nil
+}
+
+func inPath(environ []string, dir string) bool {
+	return slices.Contains(pathDirs(environ), dir)
+}
+
+// commandInPath reports whether an executable file named name is in the PATH of environ.
+func commandInPath(environ []string, name string) bool {
+	for _, dir := range pathDirs(environ) {
+		fi, err := os.Stat(filepath.Join(dir, name))
+		if err == nil && fi.Mode().IsRegular() && fi.Mode().Perm()&0o111 != 0 {
+			return true
 		}
 	}
 	return false

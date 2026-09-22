@@ -10,9 +10,6 @@
 #   project_name: my-project
 
 global:
-  # How `dockshim install` creates the alias entry points: symlink, or wrapper (a /bin/sh script,
-  # for platforms without usable symlinks). Can be overridden per alias.
-  shim_mode: symlink
   # host (uid:gid running dockshim), uid[:gid] or name[:group].
   user: host
   env:

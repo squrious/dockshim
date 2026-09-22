@@ -24,7 +24,6 @@ type Compose struct {
 
 // Global holds the defaults every alias inherits.
 type Global struct {
-	ShimMode        Scalar          `yaml:"shim_mode"`
 	User            Scalar          `yaml:"user"`
 	Env             Env             `yaml:"env"`
 	PathTranslation PathTranslation `yaml:"path_translation"`
@@ -48,7 +47,6 @@ type Env struct {
 
 // Alias is one entry point. Its settings override or extend Global.
 type Alias struct {
-	ShimMode        Scalar            `yaml:"shim_mode"`
 	Service         string            `yaml:"service"`
 	PathMapping     map[string]string `yaml:"path_mapping"` // nil: inferred from the container's bind mounts
 	User            Scalar            `yaml:"user"`

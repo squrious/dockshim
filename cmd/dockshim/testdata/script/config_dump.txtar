@@ -37,7 +37,6 @@ aliases:
     env:
       vars: {A: alias}
   node:
-    shim_mode: wrapper
     service: node
     user: "33:33"
     env:
@@ -56,7 +55,6 @@ node
   service           node
   user              33:33
   path_mapping      inferred from the container's bind mounts
-  shim_mode         wrapper
   env               allow SSH_AUTH_SOCK
                     deny FOO
                     vars A
@@ -81,7 +79,6 @@ compose:
   project_name: demo
 aliases:
   node:
-    shim_mode: wrapper
     service: node
     user: "33:33"
     infer_path_mapping: true
@@ -122,7 +119,6 @@ aliases:
       follow_symlinks: true
       max_copy_mb: 5
   php:
-    shim_mode: symlink
     service: tools
     user: "1000"
     infer_path_mapping: false

@@ -12,7 +12,7 @@ import (
 )
 
 // binDir holds the dockshim binary under test. It is a real binary (not testscript's
-// in-process command) because shims dispatch on argv[0].
+// in-process command) because shims run it from PATH.
 var binDir string
 
 func TestMain(m *testing.M) {

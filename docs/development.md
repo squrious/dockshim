@@ -15,7 +15,7 @@ mise run release-snapshot    # release archives into dist/, nothing published
 
 - **Unit tests** sit next to the code. Docker is faked through the `docker.Runner` and `docker.Target` interfaces.
 - **CLI tests** are [testscript](https://pkg.go.dev/github.com/rogpeppe/go-internal/testscript) scenarios in `cmd/dockshim/testdata/script`. They run the real binary against a fake `docker` script.
-- **Integration tests** (`-tags integration`) run a compose project against a real daemon, in both shim modes.
+- **Integration tests** (`-tags integration`) run a compose project against a real daemon.
 
 ## Commits
 

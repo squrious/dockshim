@@ -18,11 +18,6 @@ import (
 )
 
 const (
-	// ShimSymlink points a symlink at the dockshim executable; ShimWrapper writes a /bin/sh script,
-	// for filesystems without symlinks.
-	ShimSymlink = "symlink"
-	ShimWrapper = "wrapper"
-
 	// UserHost runs commands as the uid:gid running dockshim. It is the default user.
 	UserHost         = "host"
 	DefaultBinDir    = DirName + "/bin"
@@ -41,9 +36,8 @@ type Project struct {
 // ResolvedAlias is an alias with global settings merged in: users are uid:gid or names, path
 // mappings are absolute, and Env includes the built-in denylist.
 type ResolvedAlias struct {
-	ShimMode string `yaml:"shim_mode"`
-	Service  string `yaml:"service"`
-	User     string `yaml:"user"`
+	Service string `yaml:"service"`
+	User    string `yaml:"user"`
 	// InferPathMapping is set when the config has no path_mapping: the mappings are then read from
 	// the container's bind mounts at run time (ADR 0008).
 	InferPathMapping bool                    `yaml:"infer_path_mapping"`
@@ -131,7 +125,6 @@ func (f *File) Resolve(file string) *Project {
 
 	for name, a := range f.Aliases {
 		r := &ResolvedAlias{
-			ShimMode:         string(cmp.Or(a.ShimMode, f.Global.ShimMode, ShimSymlink)),
 			Service:          a.Service,
 			User:             resolveUser(string(cmp.Or(a.User, f.Global.User, UserHost))),
 			InferPathMapping: a.PathMapping == nil,
