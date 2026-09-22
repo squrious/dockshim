@@ -22,5 +22,7 @@ release:
   github:
     owner: squrious
     name: dockshim
-  # release-please creates the release and its notes; GoReleaser only attaches the archives.
+  # release-please creates the release and its notes; GoReleaser only attaches the archives and install.sh.
   mode: keep-existing
+  extra_files:
+    - glob: scripts/install.sh

@@ -25,6 +25,7 @@ Everything goes through the project `mise.toml`. Never modify the global mise co
 - `internal/docker`: `Runner` (os/exec) and `Target` (implemented by `Compose`).
 - `internal/execplan`: `Run` → start service, infer mappings, `Build` a `Plan`, `Execute` it. Path translation is in `translate.go`.
 - `internal/shim`: create and prune entry points.
+- `scripts/install.sh`: POSIX installer, attached to releases by GoReleaser. Its env vars (`DOCKSHIM_VERSION`, `DOCKSHIM_INSTALL_DIR`) are a public contract: keep them stable and documented in `docs/install.md`.
 
 Injection rules:
 - I/O and environment go through `cli.Env`.
@@ -38,4 +39,5 @@ Injection rules:
 - Every new user-facing behaviour gets a testscript scenario in `cmd/dockshim/testdata/script/*.txtar`. `TestMain` builds the real binary.
 - The fake `docker` (`fakeDocker` in `main_test.go`) logs calls to `$FAKE_DOCKER_STATE/calls`, emulates the running state, echoes exec flags and env, saves the `up` env in `up-env`, answers `inspect` from `mounts`, and extracts `cp` into `cp` (the container's `/tmp`). Inside it, call binaries by absolute path: shims in PATH would shadow them.
 - testscript has no tty: unit-test interactive paths with an injected `Prompter`.
+- `install.sh` is tested against real releases by `.github/workflows/install.yml`, on script or GoReleaser changes and after each release. Lint runs shellcheck on it.
 - Integration tests: `cmd/dockshim/integration_test.go` (`//go:build integration`), cleaned up with `t.Cleanup`. Add scenarios to `commonChecks`. Shims run the binary under test through PATH.

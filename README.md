@@ -29,13 +29,24 @@ $ phpunit tests/    # workdir and path arguments are mapped into the container
 
 ## Install
 
-Download a binary from the [releases](https://github.com/squrious/dockshim/releases) and put it in your `PATH`, or:
+```bash
+curl -fsSL https://github.com/squrious/dockshim/releases/latest/download/install.sh | sh
+```
+
+This installs the latest release into `~/.local/bin`, after verifying its checksum. `DOCKSHIM_VERSION` and `DOCKSHIM_INSTALL_DIR` change the version and the directory:
 
 ```bash
+curl -fsSL https://github.com/squrious/dockshim/releases/latest/download/install.sh | DOCKSHIM_VERSION=v0.1.0 DOCKSHIM_INSTALL_DIR="$HOME/bin" sh
+```
+
+With [mise](https://mise.jdx.dev), or with Go:
+
+```bash
+mise use -g github:squrious/dockshim
 go install github.com/squrious/dockshim/cmd/dockshim@latest
 ```
 
-The entry points run `dockshim` from `PATH`: it must be there for whatever runs them, IDEs included.
+The entry points run `dockshim` from `PATH`: it must be there for whatever runs them, IDEs included. See [Installation](docs/install.md) for details, upgrades and manual downloads.
 
 ## Quick start
 
@@ -76,6 +87,7 @@ Keep `.dockshim/bin/` out of git: the entry points are generated. `dockshim init
 
 ## Documentation
 
+- [Installation](docs/install.md): install script, mise, manual download, go install.
 - [Configuration](docs/configuration.md): every option, env forwarding and interpolation.
 - [Paths](docs/paths.md): path mapping, path translation and Windows paths under WSL.
 - [Development](docs/development.md): building, testing and releasing.

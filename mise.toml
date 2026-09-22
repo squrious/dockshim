@@ -3,6 +3,7 @@ go = "1.27.1"
 golangci-lint = "2.13.2"
 goreleaser = "2.18.2"
 actionlint = "1.7.12"
+shellcheck = "0.11.0"
 
 [env]
 _.path = ["{{config_root}}/bin"]
@@ -27,6 +28,7 @@ run = [
   "golangci-lint run",
   "goreleaser check -q",
   "actionlint",
+  "shellcheck scripts/install.sh",
 ]
 
 [tasks.install]

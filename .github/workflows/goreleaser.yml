@@ -24,3 +24,10 @@ jobs:
       - run: goreleaser release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # Smoke-tests install.sh as published, against the new release.
+  install:
+    needs: goreleaser
+    uses: ./.github/workflows/install.yml
+    with:
+      tag: ${{ inputs.tag || github.ref_name }}

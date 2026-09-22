@@ -1,0 +1,69 @@
+name: Install script
+
+# Runs install.sh against the real GitHub releases. Also called after each release, with its tag.
+on:
+  pull_request:
+    paths: [scripts/install.sh, .goreleaser.yaml, .github/workflows/install.yml]
+  push:
+    branches: [main]
+    paths: [scripts/install.sh, .goreleaser.yaml, .github/workflows/install.yml]
+  workflow_call:
+    inputs:
+      tag:
+        description: Release to test; install.sh is then downloaded from it.
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  install:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    env:
+      TAG: ${{ inputs.tag }}
+    steps:
+      - uses: actions/checkout@v7
+        if: inputs.tag == ''
+      - name: Get the script
+        run: |
+          if [ -n "$TAG" ]; then
+            curl -fsSL -o "$RUNNER_TEMP/install.sh" "https://github.com/squrious/dockshim/releases/download/$TAG/install.sh"
+          else
+            cp scripts/install.sh "$RUNNER_TEMP/install.sh"
+          fi
+      - name: Latest release
+        run: |
+          DOCKSHIM_INSTALL_DIR="$RUNNER_TEMP/latest" sh "$RUNNER_TEMP/install.sh"
+          "$RUNNER_TEMP/latest/dockshim" version
+      - name: Pinned version
+        run: |
+          DOCKSHIM_VERSION=v0.0.1 DOCKSHIM_INSTALL_DIR="$RUNNER_TEMP/pinned" sh "$RUNNER_TEMP/install.sh"
+          test "$("$RUNNER_TEMP/pinned/dockshim" version)" = 0.0.1
+          DOCKSHIM_VERSION=0.0.1 DOCKSHIM_INSTALL_DIR="$RUNNER_TEMP/pinned-no-v" sh "$RUNNER_TEMP/install.sh"
+          test "$("$RUNNER_TEMP/pinned-no-v/dockshim" version)" = 0.0.1
+      - name: Released tag
+        if: inputs.tag != ''
+        run: |
+          DOCKSHIM_VERSION="$TAG" DOCKSHIM_INSTALL_DIR="$RUNNER_TEMP/tag" sh "$RUNNER_TEMP/install.sh"
+          test "$("$RUNNER_TEMP/tag/dockshim" version)" = "${TAG#v}"
+      - name: Unknown version fails
+        run: |
+          if DOCKSHIM_VERSION=v0.0.0-nope DOCKSHIM_INSTALL_DIR="$RUNNER_TEMP/unknown" sh "$RUNNER_TEMP/install.sh"; then exit 1; fi
+          test ! -e "$RUNNER_TEMP/unknown/dockshim"
+      - name: With wget
+        if: runner.os == 'Linux'
+        run: |
+          sudo rm "$(command -v curl)"
+          DOCKSHIM_INSTALL_DIR="$RUNNER_TEMP/wget" sh "$RUNNER_TEMP/install.sh"
+          "$RUNNER_TEMP/wget/dockshim" version
+      - name: With shasum
+        if: runner.os == 'macOS'
+        run: |
+          if p=$(command -v sha256sum); then sudo rm "$p"; fi
+          DOCKSHIM_INSTALL_DIR="$RUNNER_TEMP/shasum" sh "$RUNNER_TEMP/install.sh"
+          "$RUNNER_TEMP/shasum/dockshim" version
