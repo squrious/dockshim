@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.1.0](https://github.com/squrious/dockshim/compare/v0.0.1...v0.1.0) (2026-09-22)
+
+
+### ⚠ BREAKING CHANGES
+
+* replace symlink shims with PATH-resolving wrappers
+
+### Features
+
+* add install script ([c6cecec](https://github.com/squrious/dockshim/commit/c6cecec811fbca20cdda16ad07d52300c784605a))
+* replace symlink shims with PATH-resolving wrappers ([02748be](https://github.com/squrious/dockshim/commit/02748beb7fb83afbf037dc8eb3e1307e85678c62))
+
 ## 0.0.1 (2026-09-21)
 
 First public release.
