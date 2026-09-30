@@ -44,35 +44,30 @@ func runManager(args []string, e *Env) int {
 	}
 }
 
-func newRoot(e *Env) *cobra.Command {
-	var configFile string
-	load := func(shimPath string) (*config.Project, error) {
-		if configFile != "" {
-			return config.Load(configFile, config.LookupEnviron(e.Environ))
-		}
-		cwd, err := e.cwd()
-		if err != nil {
-			return nil, err
-		}
-		return e.discover(cwd, shimPath)
+// load finds the config of a manager command, from the current directory upwards.
+func (e *Env) load() (*config.Project, error) {
+	cwd, err := e.cwd()
+	if err != nil {
+		return nil, err
 	}
+	return e.discover(cwd, "")
+}
 
+func newRoot(e *Env) *cobra.Command {
 	root := &cobra.Command{
 		Use:           config.ToolName,
 		Short:         "Run commands in Docker containers as if they were installed on the host",
 		SilenceUsage:  true,
 		SilenceErrors: true,
 	}
-	root.PersistentFlags().StringVarP(&configFile, "config", "c", "", "config file (default: discovered from the current directory upwards)")
-
 	root.AddCommand(
-		newConfigCmd(e, load),
+		newConfigCmd(e),
 		&cobra.Command{
 			Use:   "validate",
 			Short: "Validate the configuration",
 			Args:  cobra.NoArgs,
 			RunE: func(cmd *cobra.Command, args []string) error {
-				proj, err := load("")
+				proj, err := e.load()
 				if err != nil {
 					return err
 				}
@@ -85,7 +80,7 @@ func newRoot(e *Env) *cobra.Command {
 			Short: "Create an entry point for each alias in the bin directory, and remove stale ones",
 			Args:  cobra.NoArgs,
 			RunE: func(cmd *cobra.Command, args []string) error {
-				proj, err := load("")
+				proj, err := e.load()
 				if err != nil {
 					return err
 				}
@@ -108,7 +103,7 @@ func newRoot(e *Env) *cobra.Command {
 				return nil
 			},
 		},
-		newRunCmd(e, load),
+		newRunCmd(e),
 		newInitCmd(e),
 		&cobra.Command{
 			Use:   "version",
@@ -122,7 +117,7 @@ func newRoot(e *Env) *cobra.Command {
 	return root
 }
 
-func newConfigCmd(e *Env, load func(shimPath string) (*config.Project, error)) *cobra.Command {
+func newConfigCmd(e *Env) *cobra.Command {
 	var full bool
 	cmd := &cobra.Command{
 		Use:   "config [alias]",
@@ -131,7 +126,7 @@ func newConfigCmd(e *Env, load func(shimPath string) (*config.Project, error)) *
 			"settings that differ from the defaults. --full prints everything, as YAML.",
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			proj, err := load("")
+			proj, err := e.load()
 			if err != nil {
 				return err
 			}
@@ -173,7 +168,7 @@ func outsideMounts(e *Env, proj *config.Project, a *config.ResolvedAlias) []stri
 	return outside
 }
 
-func newRunCmd(e *Env, load func(shimPath string) (*config.Project, error)) *cobra.Command {
+func newRunCmd(e *Env) *cobra.Command {
 	var shimPath string
 	cmd := &cobra.Command{
 		Use:   "run <alias> [args...]",
@@ -187,7 +182,7 @@ func newRunCmd(e *Env, load func(shimPath string) (*config.Project, error)) *cob
 			if shimPath != "" && !filepath.IsAbs(shimPath) {
 				shimPath = filepath.Join(cwd, shimPath)
 			}
-			proj, err := load(shimPath)
+			proj, err := e.discover(cwd, shimPath)
 			if err != nil {
 				return err
 			}

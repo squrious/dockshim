@@ -1,6 +1,6 @@
 # Configuration
 
-The config lives in `.dockshim.yaml` or `.dockshim/config.yaml` (`.yml` also works). The directory that holds it is the project root. dockshim looks for it upwards: from the shim's own directory in alias mode, and from the current directory for manager commands. `--config` overrides that search.
+The config lives in `.dockshim.yaml` or `.dockshim/config.yaml` (`.yml` also works). The directory that holds it is the project root. dockshim looks for it upwards: from the shim's own directory in alias mode, and from the current directory for manager commands.
 
 Unknown keys are errors, and `dockshim validate` reports every problem at once.
 

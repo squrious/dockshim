@@ -13,11 +13,6 @@ cmpenv stdout want.yaml
 ! exec dockshim config nope
 stderr 'alias "nope" is not defined'
 
-# --config works from anywhere.
-cd /
-exec dockshim --config $WORK/.dockshim.yaml validate
-stdout 'is valid'
-
 -- .dockshim.yaml --
 compose:
   files: [docker/compose.yaml]
