@@ -42,7 +42,6 @@ aliases:
       follow_symlinks: true
 -- want.txt --
 config   $WORK/.dockshim.yaml
-bin_dir  .dockshim/bin
 compose  project_name demo
          file docker/compose.yaml
 
@@ -67,7 +66,6 @@ php
 -- want.yaml --
 root: $WORK
 file: $WORK/.dockshim.yaml
-bin_dir: $WORK/.dockshim/bin
 compose:
   files:
     - $WORK/docker/compose.yaml

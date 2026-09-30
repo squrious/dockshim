@@ -41,6 +41,6 @@ aliases:
   node: {container: node}
 -- ambiguous/.dockshim.yaml --
 aliases: {php: {service: a}}
--- ambiguous/.dockshim/config.yaml --
+-- ambiguous/.dockshim.yml --
 aliases: {php: {service: a}}
 -- empty/.dockshim.yml --

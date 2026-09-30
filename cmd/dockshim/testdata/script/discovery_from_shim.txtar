@@ -13,7 +13,6 @@ stdout '^target tools$'
 stderr 'no dockshim config found'
 
 -- project/.dockshim.yaml --
-bin_dir: .dockshim/bin
 aliases:
   php:
     service: tools

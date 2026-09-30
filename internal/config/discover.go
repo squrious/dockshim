@@ -11,22 +11,16 @@ import (
 const (
 	// ToolName is the binary name: shims call it through PATH, and alias names and messages depend on it.
 	ToolName = "dockshim"
-	// DirName is the project directory holding the config file and, by default, bin_dir.
+	// FileName is the config file, at the project root. `init` writes it.
+	FileName = ".dockshim.yaml"
+	// DirName is the project directory dockshim owns: it holds generated files only, and git-ignores itself.
 	DirName = ".dockshim"
-	// FlatFile is the config file at the project root, the alternative to DirFile.
-	FlatFile = ".dockshim.yaml"
+	// RelBinDir holds the shims, relative to the project root.
+	RelBinDir = DirName + "/bin"
 )
 
-// DirFile is the config file inside DirName, relative to a project root.
-var DirFile = filepath.Join(DirName, "config.yaml")
-
-// Candidates are relative to a project root, in lookup order.
-var Candidates = []string{
-	FlatFile,
-	".dockshim.yml",
-	DirFile,
-	filepath.Join(DirName, "config.yml"),
-}
+// Candidates are the config file names, in lookup order.
+var Candidates = []string{FileName, ".dockshim.yml"}
 
 // ErrNotFound is returned by Discover when no start directory has a config file above it.
 var ErrNotFound = errors.New("no dockshim config found (looked for " + strings.Join(Candidates, ", ") + ")")
@@ -75,14 +69,4 @@ func Discover(starts ...string) (string, error) {
 		}
 	}
 	return "", ErrNotFound
-}
-
-// RootOf returns the project root a config file belongs to.
-func RootOf(file string) string {
-	dir := filepath.Dir(file)
-	base := filepath.Base(file)
-	if filepath.Base(dir) == DirName && (base == "config.yaml" || base == "config.yml") {
-		return filepath.Dir(dir)
-	}
-	return dir
 }

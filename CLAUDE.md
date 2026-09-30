@@ -7,7 +7,7 @@
 
 # Project
 
-`dockshim`: a Go CLI that runs commands in Docker Compose services as if they were on the host. Each alias is an entry point in `bin_dir`: a `/bin/sh` script running `dockshim run --shim "$0" <alias>`, with `dockshim` found through PATH. Config: `.dockshim.yaml` or `.dockshim/config.yaml`.
+`dockshim`: a Go CLI that runs commands in Docker Compose services as if they were on the host. Each alias is an entry point in `.dockshim/bin`: a `/bin/sh` script running `dockshim run --shim "$0" <alias>`, with `dockshim` found through PATH. Config: `.dockshim.yaml` (or `.yml`) at the project root. `.dockshim/` is generated and git-ignores itself.
 
 ## Toolchain
 

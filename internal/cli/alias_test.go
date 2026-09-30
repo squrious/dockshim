@@ -95,7 +95,7 @@ func TestStaleShim(t *testing.T) {
 		}
 	})
 
-	t.Run("shim outside bin_dir is never removed", func(t *testing.T) {
+	t.Run("shim outside the bin directory is never removed", func(t *testing.T) {
 		p, e, stderr := staleSetup(t)
 		other := filepath.Join(t.TempDir(), "gone")
 		content, err := os.ReadFile(p)
@@ -109,7 +109,7 @@ func TestStaleShim(t *testing.T) {
 		if _, err := os.Lstat(other); err != nil {
 			t.Fatal("foreign shim should be kept")
 		}
-		if !strings.Contains(stderr.String(), "stale shim outside bin_dir") {
+		if !strings.Contains(stderr.String(), "is a stale shim outside") {
 			t.Fatalf("stderr = %s", stderr)
 		}
 	})

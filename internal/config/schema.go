@@ -10,7 +10,6 @@ import (
 
 // File is a config file as written, after interpolation. Load turns it into a Project.
 type File struct {
-	BinDir  string           `yaml:"bin_dir"`
 	Compose *Compose         `yaml:"compose"`
 	Global  Global           `yaml:"global"`
 	Aliases map[string]Alias `yaml:"aliases"`

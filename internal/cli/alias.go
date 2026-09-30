@@ -29,10 +29,6 @@ func execAlias(e *Env, proj *config.Project, name, shimPath, cwd string, args []
 	if !ok {
 		return unknownAlias(e, proj, name, shimPath)
 	}
-	if shimPath != "" && !sameDir(filepath.Dir(shimPath), proj.BinDir) {
-		e.errorf("warning: %s is outside bin_dir %s, run `dockshim install` and update PATH", shimPath, proj.BinDir)
-	}
-
 	code, err := execplan.Run(execplan.Input{
 		Project: proj,
 		Alias:   alias,
@@ -58,9 +54,9 @@ func unknownAlias(e *Env, proj *config.Project, name, shimPath string) int {
 	if shimPath == "" || !shim.IsShim(shimPath) {
 		return exitUnknownAlias
 	}
-	// Only shims in this project's bin_dir are candidates for removal.
-	if !sameDir(filepath.Dir(shimPath), proj.BinDir) {
-		e.errorf("%s is a stale shim outside bin_dir %s, remove it manually", shimPath, proj.BinDir)
+	// Only shims in this project's bin directory are candidates for removal.
+	if !sameDir(filepath.Dir(shimPath), proj.BinDir()) {
+		e.errorf("%s is a stale shim outside %s, remove it manually", shimPath, proj.BinDir())
 		return exitUnknownAlias
 	}
 	if !e.Interactive {

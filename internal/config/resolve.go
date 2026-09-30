@@ -20,7 +20,6 @@ import (
 const (
 	// UserHost runs commands as the uid:gid running dockshim. It is the default user.
 	UserHost         = "host"
-	DefaultBinDir    = DirName + "/bin"
 	DefaultMaxCopyMB = 100
 )
 
@@ -28,10 +27,12 @@ const (
 type Project struct {
 	Root    string                    `yaml:"root"`
 	File    string                    `yaml:"file"`
-	BinDir  string                    `yaml:"bin_dir"`
 	Compose *Compose                  `yaml:"compose,omitempty"`
 	Aliases map[string]*ResolvedAlias `yaml:"aliases"`
 }
+
+// BinDir holds the shims.
+func (p *Project) BinDir() string { return filepath.Join(p.Root, RelBinDir) }
 
 // ResolvedAlias is an alias with global settings merged in: users are uid:gid or names, path
 // mappings are absolute, and Env includes the built-in denylist.
@@ -108,11 +109,10 @@ func Parse(data []byte, lookup LookupFunc) (*File, error) {
 
 // Resolve merges global settings into each alias and makes paths absolute.
 func (f *File) Resolve(file string) *Project {
-	root := hostpath.Real(RootOf(file))
+	root := hostpath.Real(filepath.Dir(file))
 	p := &Project{
 		Root:    root,
 		File:    file,
-		BinDir:  absFrom(root, cmp.Or(f.BinDir, DefaultBinDir)),
 		Aliases: map[string]*ResolvedAlias{},
 	}
 	if f.Compose != nil {

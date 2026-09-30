@@ -40,16 +40,17 @@ func TestDiscover(t *testing.T) {
 		if err != nil || file != filepath.Join(root, ".dockshim.yaml") {
 			t.Fatalf("got %q, %v", file, err)
 		}
-		if RootOf(file) != root {
-			t.Fatalf("root = %q", RootOf(file))
-		}
 	})
 
-	t.Run("file in .dockshim dir", func(t *testing.T) {
+	t.Run(".yml from the shims directory", func(t *testing.T) {
 		root := t.TempDir()
-		write(t, filepath.Join(root, ".dockshim", "config.yml"), minimal)
-		file, err := Discover(root)
-		if err != nil || RootOf(file) != root {
+		write(t, filepath.Join(root, ".dockshim.yml"), minimal)
+		bin := filepath.Join(root, ".dockshim", "bin")
+		if err := os.MkdirAll(bin, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		file, err := Discover(bin)
+		if err != nil || file != filepath.Join(root, ".dockshim.yml") {
 			t.Fatalf("got %q, %v", file, err)
 		}
 	})
@@ -57,7 +58,7 @@ func TestDiscover(t *testing.T) {
 	t.Run("ambiguous", func(t *testing.T) {
 		root := t.TempDir()
 		write(t, filepath.Join(root, ".dockshim.yaml"), minimal)
-		write(t, filepath.Join(root, ".dockshim", "config.yaml"), minimal)
+		write(t, filepath.Join(root, ".dockshim.yml"), minimal)
 		if _, err := Discover(root); err == nil || !strings.Contains(err.Error(), "ambiguous") {
 			t.Fatalf("expected ambiguity error, got %v", err)
 		}
@@ -67,7 +68,7 @@ func TestDiscover(t *testing.T) {
 		empty, root := t.TempDir(), t.TempDir()
 		write(t, filepath.Join(root, ".dockshim.yaml"), minimal)
 		file, err := Discover(empty, root)
-		if err != nil || RootOf(file) != root {
+		if err != nil || filepath.Dir(file) != root {
 			t.Fatalf("got %q, %v", file, err)
 		}
 	})
@@ -76,14 +77,12 @@ func TestDiscover(t *testing.T) {
 		if os.Getuid() == 0 {
 			t.Skip("root reads everything")
 		}
-		root := t.TempDir()
-		write(t, filepath.Join(root, ".dockshim", "config.yaml"), minimal)
-		dir := filepath.Join(root, ".dockshim")
+		dir := t.TempDir()
 		if err := os.Chmod(dir, 0o000); err != nil {
 			t.Fatal(err)
 		}
 		t.Cleanup(func() { _ = os.Chmod(dir, 0o755) })
-		if _, err := Discover(root); !errors.Is(err, os.ErrPermission) {
+		if _, err := Discover(dir); !errors.Is(err, os.ErrPermission) {
 			t.Fatalf("got %v", err)
 		}
 	})
@@ -189,7 +188,6 @@ func TestResolve(t *testing.T) {
 	root := t.TempDir()
 	file := filepath.Join(root, ".dockshim.yaml")
 	write(t, file, `
-bin_dir: tools/bin
 compose: {files: [docker/compose.yaml], project_name: proj}
 global:
   user: 1000
@@ -221,8 +219,8 @@ aliases:
 	}
 	root, _ = filepath.EvalSymlinks(root)
 
-	if p.Root != root || p.BinDir != filepath.Join(root, "tools/bin") {
-		t.Errorf("root=%q bin=%q", p.Root, p.BinDir)
+	if p.Root != root {
+		t.Errorf("root = %q", p.Root)
 	}
 	if p.Compose.Files[0] != filepath.Join(root, "docker/compose.yaml") || p.Compose.ProjectName != "proj" {
 		t.Errorf("compose = %+v", p.Compose)
@@ -271,8 +269,5 @@ func TestResolveDefaults(t *testing.T) {
 	pt := p.Aliases["php"].PathTranslation
 	if !pt.Enabled || pt.FollowSymlinks || pt.MaxCopyMB != DefaultMaxCopyMB || len(pt.Allow) != 0 {
 		t.Fatalf("path translation defaults = %+v", pt)
-	}
-	if p.BinDir != filepath.Join(p.Root, ".dockshim", "bin") {
-		t.Fatalf("bin_dir = %q", p.BinDir)
 	}
 }

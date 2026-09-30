@@ -29,7 +29,6 @@ func printSummary(w io.Writer, p *config.Project, outside func(*config.ResolvedA
 	}
 
 	row("", "config", p.File)
-	row("", "bin_dir", relTo(p.Root, p.BinDir))
 	if c := p.Compose; c != nil {
 		var parts []string
 		if c.ProjectName != "" {

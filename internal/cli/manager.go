@@ -77,14 +77,17 @@ func newRoot(e *Env) *cobra.Command {
 		},
 		&cobra.Command{
 			Use:   "install",
-			Short: "Create an entry point for each alias in the bin directory, and remove stale ones",
+			Short: "Create an entry point for each alias in " + config.RelBinDir + ", and remove stale ones",
 			Args:  cobra.NoArgs,
 			RunE: func(cmd *cobra.Command, args []string) error {
 				proj, err := e.load()
 				if err != nil {
 					return err
 				}
-				res, err := shim.Install(proj.BinDir, version(), slices.Sorted(maps.Keys(proj.Aliases)))
+				if err := ignoreDir(filepath.Join(proj.Root, config.DirName)); err != nil {
+					return err
+				}
+				res, err := shim.Install(proj.BinDir(), version(), slices.Sorted(maps.Keys(proj.Aliases)))
 				printList(cmd, "created", res.Created)
 				printList(cmd, "removed", res.Removed)
 				if len(res.Skipped) > 0 {
@@ -93,9 +96,8 @@ func newRoot(e *Env) *cobra.Command {
 				if err != nil {
 					return err
 				}
-				if !inPath(e.Environ, proj.BinDir) {
-					rel, _ := filepath.Rel(proj.Root, proj.BinDir)
-					cmd.Printf("\n%s is not in PATH. For instance:\n  mise.toml: [env] _.path = [\"{{config_root}}/%s\"]\n  .envrc:    PATH_add %s\n", proj.BinDir, rel, rel)
+				if !inPath(e.Environ, proj.BinDir()) {
+					cmd.Printf("\n%s is not in PATH: add it to run the aliases by name.\n", proj.BinDir())
 				}
 				if !commandInPath(e.Environ, config.ToolName) {
 					e.errorf("warning: %s is not in PATH, the shims won't find it", config.ToolName)
@@ -204,6 +206,19 @@ func printList(cmd *cobra.Command, label string, items []string) {
 	if len(items) > 0 {
 		cmd.Printf("%s: %s\n", label, strings.Join(items, ", "))
 	}
+}
+
+// ignoreDir creates dir with a .gitignore ignoring everything in it, itself included.
+// An existing .gitignore is left alone.
+func ignoreDir(dir string) error {
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return err
+	}
+	p := filepath.Join(dir, ".gitignore")
+	if _, err := os.Lstat(p); !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+	return os.WriteFile(p, []byte("*\n"), 0o644)
 }
 
 // pathDirs returns the directories of the first PATH in environ, as getenv would.

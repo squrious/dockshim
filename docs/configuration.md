@@ -1,14 +1,12 @@
 # Configuration
 
-The config lives in `.dockshim.yaml` or `.dockshim/config.yaml` (`.yml` also works). The directory that holds it is the project root. dockshim looks for it upwards: from the shim's own directory in alias mode, and from the current directory for manager commands.
+The config lives in `.dockshim.yaml` (`.dockshim.yml` also works, but not both). The directory that holds it is the project root. dockshim looks for it upwards: from the shim's own directory in alias mode, and from the current directory for manager commands.
 
 Unknown keys are errors, and `dockshim validate` reports every problem at once.
 
 ## Reference
 
 ```yaml
-bin_dir: .dockshim/bin          # where `dockshim install` creates entry points (default)
-
 compose:                        # passed to every docker compose call (optional)
   files: [compose.yaml]         # relative to the project root
   project_name: my-project
@@ -43,9 +41,9 @@ In an alias, scalars override `global`, lists are appended and `vars` are merged
 
 ## Entry points
 
-`dockshim install` creates one `/bin/sh` script per alias in `bin_dir`. It runs `dockshim run --shim`, finding `dockshim` through `PATH`, so upgrading or moving the binary needs no reinstall. `dockshim` must therefore be in the `PATH` of whatever runs the shims, IDEs included.
+`dockshim install` creates one `/bin/sh` script per alias in `.dockshim/bin`. It runs `dockshim run --shim`, finding `dockshim` through `PATH`, so upgrading or moving the binary needs no reinstall. `dockshim` must therefore be in the `PATH` of whatever runs the shims, IDEs included.
 
-The scripts are generated: don't edit them, change the config and run `install` again.
+The scripts are generated: don't edit them, change the config and run `install` again. `.dockshim/` only holds generated files: `install` writes a `.dockshim/.gitignore` that ignores it all.
 
 ## Environment forwarding
 

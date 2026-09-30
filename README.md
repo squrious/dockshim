@@ -52,13 +52,13 @@ The entry points run `dockshim` from `PATH`: it must be there for whatever runs 
 
 ```bash
 cd my-project                            # has a compose.yaml with an `app` service
-dockshim init                            # writes .dockshim/config.yaml
+dockshim init                            # writes .dockshim.yaml
 ```
 
 Declare your aliases:
 
 ```yaml
-# .dockshim/config.yaml
+# .dockshim.yaml
 aliases:
   php:
     service: app
@@ -72,14 +72,14 @@ export PATH="$PWD/.dockshim/bin:$PATH"   # or mise `_.path`, direnv `PATH_add`
 php -v
 ```
 
-Keep `.dockshim/bin/` out of git: the entry points are generated. `dockshim init` writes a `.dockshim/.gitignore` for this.
+`.dockshim/` only holds generated files, and git-ignores itself: commit `.dockshim.yaml` only.
 
 ## Commands
 
 | Command | |
 |---|---|
-| `dockshim init [-d dir] [--flat] [--force]` | Create a starter config in `.dockshim/config.yaml` (`--flat`: `.dockshim.yaml`) |
-| `dockshim install` | Create the alias entry points and remove stale ones |
+| `dockshim init [-d dir] [--force]` | Create a starter `.dockshim.yaml` |
+| `dockshim install` | Create the alias entry points in `.dockshim/bin` and remove stale ones |
 | `dockshim config [alias] [--full]` | Summarise the resolved configuration (`--full`: everything, as YAML) |
 | `dockshim validate` | Validate the configuration |
 | `dockshim run <alias> [args]` | Run an alias without its shim |

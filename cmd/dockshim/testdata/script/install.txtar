@@ -1,8 +1,17 @@
-# install creates shims, removes stale ones and leaves foreign files alone.
+# install creates shims in .dockshim/bin, removes stale ones and leaves foreign files alone.
 exec dockshim install
 stdout '^created: composer, php$'
-stdout 'is not in PATH'
-stdout 'PATH_add .dockshim/bin'
+stdout '^'$WORK'/.dockshim/bin is not in PATH: add it to run the aliases by name.$'
+exec test -x .dockshim/bin/php
+
+# .dockshim/ holds generated files only, and git-ignores itself. An existing .gitignore is kept.
+cmp .dockshim/.gitignore ignore-all
+cp custom-ignore .dockshim/.gitignore
+exec dockshim install
+grep '^custom$' .dockshim/.gitignore
+rm .dockshim/.gitignore
+exec dockshim install
+cmp .dockshim/.gitignore ignore-all
 
 exec dockshim install
 ! stdout created
@@ -27,6 +36,10 @@ exec dockshim install
 aliases:
   php: {service: tools}
   composer: {service: tools}
+-- custom-ignore --
+custom
+-- ignore-all --
+*
 -- config2.yaml --
 aliases:
   php: {service: tools}

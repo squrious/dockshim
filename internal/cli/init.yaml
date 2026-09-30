@@ -1,9 +1,6 @@
 # dockshim configuration.
 # Values support environment interpolation: $VAR, ${VAR}, ${VAR:-default}, ${VAR:?error}, $$ for a literal $.
 
-# Where `dockshim install` creates the alias entry points, relative to the project root.
-# bin_dir: .dockshim/bin
-
 # Options passed to every docker compose call.
 # compose:
 #   files: [compose.yaml]
