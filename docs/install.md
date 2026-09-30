@@ -38,7 +38,7 @@ less install.sh
 sh install.sh
 ```
 
-**Upgrade:** run the script again. Right after a release is published, its files may take a few minutes to be attached: if the download fails, retry later. **Uninstall:** delete the binary (`rm ~/.local/bin/dockshim`).
+**Uninstall:** delete the binary (`rm ~/.local/bin/dockshim`).
 
 ## mise
 
@@ -47,8 +47,6 @@ sh install.sh
 ```bash
 mise use -g github:squrious/dockshim
 ```
-
-Upgrade with `mise upgrade github:squrious/dockshim`.
 
 `mise activate` sets `PATH` in interactive shells only. IDEs started from a desktop launcher don't see it: add mise's shims directory (`~/.local/share/mise/shims`) to the `PATH` they get, or configure your IDE's mise integration.
 
@@ -72,3 +70,16 @@ go install github.com/squrious/dockshim/cmd/dockshim@latest
 ```
 
 The binary goes to `$(go env GOPATH)/bin`. `dockshim version` shows the module version.
+
+## Upgrade
+
+Upgrade with the method you installed with:
+
+| Method | Upgrade |
+|---|---|
+| Install script | Run the script again. Right after a release is published, its files may take a few minutes to be attached: if the download fails, retry later. |
+| mise | `mise upgrade github:squrious/dockshim` |
+| Manual download | Repeat the steps with the new archive. |
+| go install | `go install github.com/squrious/dockshim/cmd/dockshim@latest` |
+
+Entry points keep working across upgrades: they run `dockshim` through `PATH`.
