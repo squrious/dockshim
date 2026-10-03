@@ -57,7 +57,7 @@ func TestBuild(t *testing.T) {
 
 func TestNewTarget(t *testing.T) {
 	proj := &config.Project{Root: "/proj", Compose: &config.Compose{Files: []string{"/proj/c.yaml"}, ProjectName: "p"}}
-	if c, ok := NewTarget(proj, alias(), nil).(*docker.Compose); !ok || c.Service != "tools" || c.ProjectName != "p" || c.ProjectDir != "/proj" {
+	if c := NewTarget(proj, alias(), nil); c.Service != "tools" || c.ProjectName != "p" || c.ProjectDir != "/proj" {
 		t.Fatalf("compose target = %+v", c)
 	}
 }
@@ -231,7 +231,7 @@ func TestInferMappings(t *testing.T) {
 		{Type: docker.MountBind, Source: "/var/run/docker.sock", Destination: "/var/run/docker.sock"},
 		{Type: docker.MountBind, Source: root, Destination: "/app"},
 	}
-	got, outside := inferMappings(mounts, root)
+	got, outside := InferMappings(mounts, root)
 	want := pathmap.Map{{Host: root, Container: "/app"}, {Host: root + "/src", Container: "/src"}, {Host: root, Container: "/var/www"}}
 	if !slices.Equal(got, want) {
 		t.Fatalf("mappings = %v", got)

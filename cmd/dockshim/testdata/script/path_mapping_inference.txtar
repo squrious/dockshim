@@ -13,13 +13,21 @@ stdout '^cmd php /app/composer.json$'
 exec sh -c 'grep -n -e "up --detach" -e "^inspect" $FAKE_DOCKER_STATE/calls'
 stdout '^[0-9]+:compose up --detach tools\n[0-9]+:inspect --format \{\{json \.Mounts\}\} abc123$'
 
-# config lists skipped mounts of a running service, and never starts it.
-exec dockshim config php
-stdout '^  path_mapping +inferred from the container''s bind mounts\n +not mapped, outside the project: /var/run/docker.sock$'
+# config shows the mappings of a running service and the mounts it skips, inspecting it once.
+rm $FAKE_DOCKER_STATE/calls
+exec dockshim config
+stdout -count=2 '^  path_mapping +inferred from the running container\n +\. → /app\n +src → /code\n +not mapped, outside the project: /var/run/docker.sock$'
+exec grep -c '^inspect' $FAKE_DOCKER_STATE/calls
+stdout '^1$'
+
+# While the service is down, config reads the compose config, and never starts the service.
 rm $FAKE_DOCKER_STATE/running
 rm $FAKE_DOCKER_STATE/calls
-exec dockshim config php
-! stdout 'not mapped'
+exec sh -c 'printf "%s" "{\"services\":{\"tools\":{\"volumes\":[{\"type\":\"bind\",\"source\":\"$WORK/src\",\"target\":\"/code\"},{\"type\":\"bind\",\"source\":\"/etc/hosts\",\"target\":\"/etc/hosts\"}]}}}" > $FAKE_DOCKER_STATE/compose-config'
+exec dockshim config
+stdout -count=2 '^  path_mapping +inferred from the compose config, tools isn''t running\n +src → /code\n +not mapped, outside the project: /etc/hosts$'
+exec grep -c '^compose config --format json tools$' $FAKE_DOCKER_STATE/calls
+stdout '^1$'
 ! grep 'up|inspect' $FAKE_DOCKER_STATE/calls
 
 # A path_mapping, even empty, turns inference off.
@@ -32,6 +40,8 @@ exec explicit
 -- .dockshim.yaml --
 aliases:
   php:
+    service: tools
+  composer:
     service: tools
   explicit:
     service: tools

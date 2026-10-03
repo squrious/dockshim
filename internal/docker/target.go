@@ -164,3 +164,25 @@ func (c *Compose) Mounts() ([]Mount, error) {
 	}
 	return mounts, nil
 }
+
+// ConfiguredMounts lists the mounts the compose config declares for the service, as up would
+// create them.
+func (c *Compose) ConfiguredMounts() ([]Mount, error) {
+	out, err := output(c.Runner, c.ProjectDir, append(c.base(), "config", "--format", "json", c.Service)...)
+	if err != nil {
+		return nil, err
+	}
+	var cfg struct {
+		Services map[string]struct {
+			Volumes []struct{ Type, Source, Target string }
+		}
+	}
+	if err := json.Unmarshal([]byte(out), &cfg); err != nil {
+		return nil, fmt.Errorf("reading the compose config of %s: %w", c, err)
+	}
+	var mounts []Mount
+	for _, v := range cfg.Services[c.Service].Volumes {
+		mounts = append(mounts, Mount{Type: v.Type, Source: v.Source, Destination: v.Target})
+	}
+	return mounts, nil
+}

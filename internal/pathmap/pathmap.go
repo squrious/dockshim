@@ -9,8 +9,8 @@ import (
 
 // Mapping makes the host directory Host visible at Container in the container.
 type Mapping struct {
-	Host      string `yaml:"host"`
-	Container string `yaml:"container"`
+	Host      string
+	Container string
 }
 
 // Map holds mappings with absolute, cleaned host paths.

@@ -17,7 +17,7 @@ aliases:
 
 It sets the working directory: the current directory is translated through the longest matching mapping. When nothing matches, as with an IDE running from `/`, the container's default applies.
 
-**Inference.** Without `path_mapping`, dockshim reads the bind mounts of the running container (`docker inspect`) and maps those whose source is inside the project. Mounts from elsewhere, such as `/var/run/docker.sock`, are skipped silently, and `dockshim config` lists them while the service runs. Set `path_mapping`, even to `{}`, to choose the mappings yourself: inference is then off.
+**Inference.** Without `path_mapping`, dockshim reads the bind mounts of the running container (`docker inspect`) and maps those whose source is inside the project. Mounts from elsewhere, such as `/var/run/docker.sock`, are skipped silently. `dockshim config` shows the inferred mappings and the skipped mounts: from the running container, or from `docker compose config` while the service is down. Set `path_mapping`, even to `{}`, to choose the mappings yourself: inference is then off.
 
 > **Limited support:** inference compares the mount sources docker reports with the project path. With a remote daemon, or a Docker Desktop setup that reports bind sources under its own paths, nothing matches. Set `path_mapping` explicitly there.
 

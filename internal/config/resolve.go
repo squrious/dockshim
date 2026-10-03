@@ -25,10 +25,10 @@ const (
 
 // Project is a fully resolved configuration: paths are absolute, aliases merged with global.
 type Project struct {
-	Root    string                    `yaml:"root"`
-	File    string                    `yaml:"file"`
-	Compose *Compose                  `yaml:"compose,omitempty"`
-	Aliases map[string]*ResolvedAlias `yaml:"aliases"`
+	Root    string
+	File    string
+	Compose *Compose
+	Aliases map[string]*ResolvedAlias
 }
 
 // BinDir holds the shims.
@@ -37,26 +37,26 @@ func (p *Project) BinDir() string { return filepath.Join(p.Root, RelBinDir) }
 // ResolvedAlias is an alias with global settings merged in: users are uid:gid or names, path
 // mappings are absolute, and Env includes the built-in denylist.
 type ResolvedAlias struct {
-	Service string `yaml:"service"`
-	User    string `yaml:"user"`
+	Service string
+	User    string
 	// InferPathMapping is set when the config has no path_mapping: the mappings are then read from
 	// the container's bind mounts at run time (ADR 0008).
-	InferPathMapping bool                    `yaml:"infer_path_mapping"`
-	PathMapping      pathmap.Map             `yaml:"path_mapping"`
-	Env              envfilter.Rules         `yaml:"env"`
-	Vars             map[string]string       `yaml:"vars"`
-	PathTranslation  ResolvedPathTranslation `yaml:"path_translation"`
+	InferPathMapping bool
+	PathMapping      pathmap.Map
+	Env              envfilter.Rules
+	Vars             map[string]string
+	PathTranslation  ResolvedPathTranslation
 }
 
 // ResolvedPathTranslation is path_translation with its defaults applied.
 type ResolvedPathTranslation struct {
-	Enabled bool `yaml:"enabled"`
+	Enabled bool
 	// Allow lists host directories whose files may be copied into the container,
 	// on top of the system temporary directories, which always are.
-	Allow []string `yaml:"allow"`
+	Allow []string
 	// FollowSymlinks lets a symlink inside an allowed directory point outside it.
-	FollowSymlinks bool `yaml:"follow_symlinks"`
-	MaxCopyMB      int  `yaml:"max_copy_mb"`
+	FollowSymlinks bool
+	MaxCopyMB      int
 }
 
 // Load parses, validates and resolves the config file, interpolating values with lookup.

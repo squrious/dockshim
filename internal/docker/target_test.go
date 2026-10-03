@@ -13,7 +13,8 @@ type call struct {
 	env  string
 }
 
-// fakeRunner answers "ps" according to running, and "inspect" with fixed mounts, and records calls.
+// fakeRunner answers "ps" according to running, "inspect" and "config" with fixed mounts, and
+// records calls.
 // With fail set, every call exits with it.
 type fakeRunner struct {
 	running bool
@@ -32,6 +33,8 @@ func (f *fakeRunner) Run(c Cmd) (int, error) {
 		out = "abc123\n"
 	case c.Args[0] == "inspect":
 		out = `[{"Type":"volume","Source":"/var/lib/docker/volumes/v/_data","Destination":"/data","RW":true},{"Type":"bind","Source":"/proj","Destination":"/app"}]` + "\n"
+	case slices.Contains(c.Args, "config"):
+		out = `{"services":{"tools":{"volumes":[{"type":"volume","target":"/data","volume":{}},{"type":"bind","source":"/proj","target":"/app","bind":{}}]}}}` + "\n"
 	}
 	_, err := io.WriteString(c.Stdout, out)
 	return 0, err
@@ -115,5 +118,29 @@ func TestComposeMounts(t *testing.T) {
 	}
 	if _, err := c.Mounts(); err == nil {
 		t.Fatal("expected error when not running")
+	}
+}
+
+func TestComposeConfiguredMounts(t *testing.T) {
+	r := &fakeRunner{}
+	c := &Compose{Runner: r, ProjectDir: "/proj", ProjectName: "p", Service: "tools"}
+	mounts, err := c.ConfiguredMounts()
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []Mount{{Type: "volume", Destination: "/data"}, {Type: "bind", Source: "/proj", Destination: "/app"}}
+	if !slices.Equal(mounts, want) {
+		t.Fatalf("mounts = %+v", mounts)
+	}
+	if got := r.calls[0]; got != (call{"/proj", "compose --project-name p config --format json tools", ""}) {
+		t.Fatalf("config call = %+v", got)
+	}
+	// A service without volumes has no mounts.
+	if mounts, err := (&Compose{Runner: r, Service: "other"}).ConfiguredMounts(); err != nil || mounts != nil {
+		t.Fatalf("mounts=%v err=%v", mounts, err)
+	}
+	r.fail = 1
+	if _, err := c.ConfiguredMounts(); err == nil {
+		t.Fatal("expected error when compose fails")
 	}
 }

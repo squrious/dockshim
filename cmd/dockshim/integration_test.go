@@ -106,8 +106,8 @@ func must(t *testing.T, err error) {
 	}
 }
 
-// commonChecks exercises an alias named sh whose project root is mapped to /app. stop stops the target, to check auto start;
-// it runs last.
+// commonChecks exercises an alias named sh whose project root is mapped to /app. stop stops the
+// target, to check config and auto start; they run last.
 func commonChecks(t *testing.T, root string, stop func()) {
 	sub := filepath.Join(root, "sub")
 	hostUser := strconv.Itoa(os.Getuid()) + ":" + strconv.Itoa(os.Getgid())
@@ -169,6 +169,26 @@ func commonChecks(t *testing.T, root string, stop func()) {
 		failing := shim(t, root, sub, "", nil, "sh", "-c", `test -f "$1" && exit 7`, "_", filepath.Join(ext, "file.txt"))
 		expect(t, failing, "", 7)
 		expect(t, shim(t, root, sub, "", nil, "sh", "-c", `ls /tmp | grep -c dockshim-`), "0", 1)
+	})
+	t.Run("config", func(t *testing.T) {
+		config := func() string {
+			cmd := exec.Command(filepath.Join(binDir, "dockshim"), "config")
+			cmd.Dir = root
+			out, err := cmd.CombinedOutput()
+			if err != nil {
+				t.Fatalf("config: %v\n%s", err, out)
+			}
+			return string(out)
+		}
+		// Inferred mappings come from the container, or from the compose config while it is down.
+		for _, state := range []string{"running", "stopped"} {
+			if state == "stopped" {
+				stop()
+			}
+			if out := config(); !strings.Contains(out, ". → /app") {
+				t.Fatalf("%s: config = %s", state, out)
+			}
+		}
 	})
 	t.Run("auto start", func(t *testing.T) {
 		stop()

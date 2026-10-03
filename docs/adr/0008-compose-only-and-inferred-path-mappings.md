@@ -10,6 +10,8 @@
 
 Any `path_mapping`, even `{}`, disables inference.
 
+**Mappings come from the container, not from `docker compose config`.** Commands run in the existing container, which keeps the mounts it was created with. After an edit to the compose volumes, or with a different environment interpolating them, the compose config would give mappings that aren't mounted. `dockshim config` reads the compose config only while the service is down, since `up` then creates the container from it.
+
 **Order.** Start the service, read its mounts, then build the command, since the workdir and path translation depend on the mappings. The container id is looked up once per invocation.
 
 ## Consequences

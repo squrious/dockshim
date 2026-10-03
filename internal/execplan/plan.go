@@ -59,12 +59,12 @@ func Run(in Input, stdio Stdio) (int, error) {
 	}
 	if in.Alias.InferPathMapping {
 		// Skipped mounts are left to `dockshim config`: they would be reported on every call.
-		m, _, err := InferMappings(in.Target, in.Project.Root)
+		mounts, err := in.Target.Mounts()
 		if err != nil {
 			return 1, err
 		}
 		a := *in.Alias
-		a.PathMapping = m
+		a.PathMapping, _ = InferMappings(mounts, in.Project.Root)
 		in.Alias = &a
 	}
 	p, err := Build(in)
@@ -119,7 +119,7 @@ func environment(in Input) (env, names []string) {
 }
 
 // NewTarget returns the compose service an alias runs in.
-func NewTarget(p *config.Project, a *config.ResolvedAlias, r docker.Runner) docker.Target {
+func NewTarget(p *config.Project, a *config.ResolvedAlias, r docker.Runner) *docker.Compose {
 	c := &docker.Compose{Runner: r, ProjectDir: p.Root, Service: a.Service}
 	if p.Compose != nil {
 		c.Files, c.ProjectName = p.Compose.Files, p.Compose.ProjectName

@@ -16,8 +16,8 @@ import (
 
 // printSummary writes what matters of a project: service, user and path mappings of each alias,
 // and the other settings only where they differ from the defaults. Paths are relative to the root.
-// outside returns the bind mounts an inferred mapping skips, when that is known.
-func printSummary(w io.Writer, p *config.Project, outside func(*config.ResolvedAlias) []string) error {
+// infer returns what inference gives for an alias, nil when that is unknown.
+func printSummary(w io.Writer, p *config.Project, infer func(*config.ResolvedAlias) *inference) error {
 	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
 	row := func(indent, key string, values ...string) {
 		for i, v := range values {
@@ -45,27 +45,47 @@ func printSummary(w io.Writer, p *config.Project, outside func(*config.ResolvedA
 		_, _ = fmt.Fprintf(tw, "\n%s\n", name)
 		row("  ", "service", a.Service)
 		row("  ", "user", a.User)
-		row("  ", "path_mapping", mappingLines(p.Root, a, outside)...)
+		row("  ", "path_mapping", mappingLines(p.Root, a, infer)...)
 		row("  ", "env", envLines(a)...)
 		row("  ", "path_translation", translationLines(a.PathTranslation)...)
 	}
 	return tw.Flush()
 }
 
-func mappingLines(root string, a *config.ResolvedAlias, outside func(*config.ResolvedAlias) []string) []string {
-	if a.InferPathMapping {
-		lines := []string{"inferred from the container's bind mounts"}
-		for _, src := range outside(a) {
-			lines = append(lines, "not mapped, outside the project: "+src)
+func mappingLines(root string, a *config.ResolvedAlias, infer func(*config.ResolvedAlias) *inference) []string {
+	if !a.InferPathMapping {
+		if len(a.PathMapping) == 0 {
+			return []string{"none"}
 		}
-		return lines
+		return pairLines(root, a.PathMapping)
 	}
-	if len(a.PathMapping) == 0 {
-		return []string{"none"}
+	inf := infer(a)
+	switch {
+	case inf == nil:
+		return []string{"inferred from the container's bind mounts"}
+	case inf.running:
+		return inferredLines(root, "inferred from the running container", inf)
+	default:
+		return inferredLines(root, "inferred from the compose config, "+a.Service+" isn't running", inf)
 	}
+}
+
+func inferredLines(root, head string, inf *inference) []string {
+	lines := []string{head}
+	if len(inf.mappings) == 0 {
+		lines = append(lines, "no bind mount inside the project")
+	}
+	lines = append(lines, pairLines(root, inf.mappings)...)
+	for _, src := range inf.outside {
+		lines = append(lines, "not mapped, outside the project: "+src)
+	}
+	return lines
+}
+
+func pairLines(root string, m pathmap.Map) []string {
 	var lines []string
-	for _, m := range a.PathMapping {
-		lines = append(lines, relTo(root, m.Host)+" → "+m.Container)
+	for _, p := range m {
+		lines = append(lines, relTo(root, p.Host)+" → "+p.Container)
 	}
 	return lines
 }

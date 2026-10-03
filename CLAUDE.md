@@ -37,7 +37,7 @@ Injection rules:
 
 - Unit tests are table-driven, next to the code. Fakes implement `docker.Runner` / `docker.Target`.
 - Every new user-facing behaviour gets a testscript scenario in `cmd/dockshim/testdata/script/*.txtar`. `TestMain` builds the real binary.
-- The fake `docker` (`fakeDocker` in `main_test.go`) logs calls to `$FAKE_DOCKER_STATE/calls`, emulates the running state, echoes exec flags and env, saves the `up` env in `up-env`, answers `inspect` from `mounts`, and extracts `cp` into `cp` (the container's `/tmp`). Inside it, call binaries by absolute path: shims in PATH would shadow them.
+- The fake `docker` (`fakeDocker` in `main_test.go`) logs calls to `$FAKE_DOCKER_STATE/calls`, emulates the running state, echoes exec flags and env, saves the `up` env in `up-env`, answers `inspect` from `mounts` and `compose config` from `compose-config`, and extracts `cp` into `cp` (the container's `/tmp`). Inside it, call binaries by absolute path: shims in PATH would shadow them.
 - testscript has no tty: unit-test interactive paths with an injected `Prompter`.
 - `install.sh` is tested against real releases by `.github/workflows/install.yml`, on script or GoReleaser changes and after each release. Lint runs shellcheck on it.
 - Integration tests: `cmd/dockshim/integration_test.go` (`//go:build integration`), cleaned up with `t.Cleanup`. Add scenarios to `commonChecks`. Shims run the binary under test through PATH.

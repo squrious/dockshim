@@ -12,7 +12,7 @@ env MODE_OVERRIDE=prod
 exec .dockshim/bin/php
 stdout '^env MODE=prod$'
 
-exec dockshim config php
+exec dockshim config
 stdout '^  service +tools$'
 
 # Unset variables without a default are errors; empty ones are kept.

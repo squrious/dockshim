@@ -11,10 +11,10 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
-	"gopkg.in/yaml.v3"
 
 	"github.com/squrious/dockshim/internal/config"
 	"github.com/squrious/dockshim/internal/execplan"
+	"github.com/squrious/dockshim/internal/pathmap"
 	"github.com/squrious/dockshim/internal/shim"
 )
 
@@ -120,54 +120,55 @@ func newRoot(e *Env) *cobra.Command {
 }
 
 func newConfigCmd(e *Env) *cobra.Command {
-	var full bool
-	cmd := &cobra.Command{
-		Use:   "config [alias]",
-		Short: "Print the resolved configuration",
-		Long: "Print the resolved configuration: service, user and path mappings of each alias, and the\n" +
-			"settings that differ from the defaults. --full prints everything, as YAML.",
-		Args: cobra.MaximumNArgs(1),
+	return &cobra.Command{
+		Use:   "config",
+		Short: "Print the effective configuration",
+		Long: "Print the effective configuration: service, user and path mappings of each alias, and the\n" +
+			"settings that differ from the defaults. Inferred mappings are read from the running container,\n" +
+			"or from the compose config while the service is down.",
+		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			proj, err := e.load()
 			if err != nil {
 				return err
 			}
-			if len(args) == 1 {
-				a, ok := proj.Aliases[args[0]]
-				if !ok {
-					return fmt.Errorf("alias %q is not defined in %s", args[0], proj.File)
+			cache := map[string]*inference{}
+			return printSummary(cmd.OutOrStdout(), proj, func(a *config.ResolvedAlias) *inference {
+				if inf, ok := cache[a.Service]; ok {
+					return inf
 				}
-				proj.Aliases = map[string]*config.ResolvedAlias{args[0]: a}
-			}
-			if !full {
-				return printSummary(cmd.OutOrStdout(), proj, func(a *config.ResolvedAlias) []string {
-					return outsideMounts(e, proj, a)
-				})
-			}
-			enc := yaml.NewEncoder(cmd.OutOrStdout())
-			enc.SetIndent(2)
-			if err := enc.Encode(proj); err != nil {
-				return err
-			}
-			return enc.Close()
+				cache[a.Service] = inferMounts(e, proj, a)
+				return cache[a.Service]
+			})
 		},
 	}
-	cmd.Flags().BoolVar(&full, "full", false, "print every setting, defaults included, as YAML")
-	return cmd
 }
 
-// outsideMounts lists the bind mounts inference skips, when the alias service is running.
-// It never starts the service, and stays silent when docker can't tell.
-func outsideMounts(e *Env, proj *config.Project, a *config.ResolvedAlias) []string {
+// inference is what path mapping inference gives for a service, read from the running container
+// or, while it is down, from the compose config.
+type inference struct {
+	running  bool
+	mappings pathmap.Map
+	outside  []string
+}
+
+// inferMounts never starts the service, and returns nil when docker can't tell.
+func inferMounts(e *Env, proj *config.Project, a *config.ResolvedAlias) *inference {
 	if e.Runner == nil {
 		return nil
 	}
 	target := execplan.NewTarget(proj, a, e.Runner)
-	if !target.IsRunning() {
+	running := target.IsRunning()
+	mount := target.ConfiguredMounts
+	if running {
+		mount = target.Mounts
+	}
+	mounts, err := mount()
+	if err != nil {
 		return nil
 	}
-	_, outside, _ := execplan.InferMappings(target, proj.Root)
-	return outside
+	m, outside := execplan.InferMappings(mounts, proj.Root)
+	return &inference{running: running, mappings: m, outside: outside}
 }
 
 func newRunCmd(e *Env) *cobra.Command {

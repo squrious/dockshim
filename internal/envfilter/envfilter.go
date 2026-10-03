@@ -27,9 +27,9 @@ func ValidName(name string) bool {
 
 // Rules select the host variables forwarded to the container.
 type Rules struct {
-	Deny         []string `yaml:"deny"`
-	DenyPrefixes []string `yaml:"deny_prefixes"`
-	Allow        []string `yaml:"allow"`
+	Deny         []string
+	DenyPrefixes []string
+	Allow        []string
 }
 
 // Denied reports whether name must not be forwarded. Allow wins over Deny and DenyPrefixes.

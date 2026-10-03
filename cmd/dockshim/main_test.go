@@ -41,6 +41,7 @@ func run(m *testing.M) int {
 // A target is running when $FAKE_DOCKER_STATE/running exists.
 // up saves its environment in $FAKE_DOCKER_STATE/up-env.
 // inspect prints $FAKE_DOCKER_STATE/mounts as the container mounts, [] when missing.
+// compose config prints $FAKE_DOCKER_STATE/compose-config, and fails when it is missing.
 // Creating $FAKE_DOCKER_STATE/stop-on-exec makes the next exec stop the target and fail.
 // cp extracts the archive into $FAKE_DOCKER_STATE/cp, standing for the container /tmp.
 // exec prints what it received, and exits with $FAKE_EXEC_EXIT. It emulates `cat` (stdin, or
@@ -57,6 +58,7 @@ sub=$1; shift
 case "$sub" in
   ps) [ -e "$state/running" ] && echo abc123; exit 0;;
   inspect) if [ -e "$state/mounts" ]; then /bin/cat "$state/mounts"; else echo '[]'; fi; exit 0;;
+  config) if [ -e "$state/compose-config" ]; then /bin/cat "$state/compose-config"; exit 0; fi; echo "fake: no compose config" >&2; exit 1;;
   up) /usr/bin/env > "$state/up-env"; touch "$state/running"; exit 0;;
   cp)
     [ "$1 $2" = "--archive -" ] || { echo "fake: unexpected cp $*" >&2; exit 99; }

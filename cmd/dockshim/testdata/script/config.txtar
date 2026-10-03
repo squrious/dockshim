@@ -1,0 +1,58 @@
+# config prints a summary: defaults are left out, paths are relative to the root.
+exec dockshim config
+cmpenv stdout want.txt
+
+# It takes no arguments.
+! exec dockshim config php
+stderr 'unknown command "php" for "dockshim config"'
+
+-- .dockshim.yaml --
+compose:
+  files: [docker/compose.yaml]
+  project_name: demo
+global:
+  user: 1000
+  path_translation:
+    allow: [/data]
+    max_copy_mb: 5
+  env:
+    deny: [FOO]
+    vars: {A: global}
+aliases:
+  php:
+    service: tools
+    path_mapping: {.: /app, assets: /assets/build}
+    env:
+      vars: {A: alias}
+  node:
+    service: node
+    user: "33:33"
+    env:
+      allow: [SSH_AUTH_SOCK]
+    path_translation:
+      enabled: false
+      allow: [/data2/]
+      follow_symlinks: true
+-- want.txt --
+config   $WORK/.dockshim.yaml
+compose  project_name demo
+         file docker/compose.yaml
+
+node
+  service           node
+  user              33:33
+  path_mapping      inferred from the container's bind mounts
+  env               allow SSH_AUTH_SOCK
+                    deny FOO
+                    vars A
+  path_translation  disabled
+
+php
+  service           tools
+  user              1000
+  path_mapping      . → /app
+                    assets → /assets/build
+  env               deny FOO
+                    vars A
+  path_translation  allow /data
+                    max_copy_mb 5
