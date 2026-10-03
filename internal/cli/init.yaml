@@ -1,40 +1,30 @@
-# dockshim configuration.
+# dockshim configuration: https://github.com/squrious/dockshim/blob/main/docs/configuration.md
+# Commented values are the defaults: uncommenting them changes nothing.
 # Values support environment interpolation: $VAR, ${VAR}, ${VAR:-default}, ${VAR:?error}, $$ for a literal $.
 
-# Options passed to every docker compose call.
+# Options passed to every docker compose call. Unset, compose applies its own discovery.
 # compose:
-#   files: [compose.yaml]
-#   project_name: my-project
+#   files: []                   # relative to the project root
+#   project_name: ""
 
-global:
-  # host (uid:gid running dockshim), uid[:gid] or name[:group].
-  user: host
-  env:
-    # Appended to the built-in denylist (PATH, HOME, USER, DOCKER_*, SSH_*, XDG_*...).
-    deny: []
-    deny_prefixes: []
-    # Always forwarded, even if denied.
-    allow: []
-    # Set in the container.
-    vars: {}
-  # Host paths in arguments: mapped ones are rewritten, copyable files copied to /tmp in the container.
-  path_translation:
-    enabled: true
-    # Directories whose files may be copied. System temporary directories always may.
-    # Any other path keeps its value, and so designates the container's own file.
-    allow: []
-    # Let a symlink in an allowed directory point out of it.
-    follow_symlinks: false
-    max_copy_mb: 100
+# Defaults for every alias.
+# global:
+#   user: host                  # uid:gid running dockshim. Or uid[:gid], name[:group]
+#   env:                        # https://github.com/squrious/dockshim/blob/main/docs/configuration.md#environment-forwarding
+#     deny: []                  # appended to the built-in denylist
+#     deny_prefixes: []
+#     allow: []                 # always forwarded, even if denied
+#     vars: {}                  # set in the container
+#   path_translation:           # https://github.com/squrious/dockshim/blob/main/docs/paths.md#path-translation
+#     enabled: true
+#     allow: []                 # directories whose files may be copied, on top of the system temporary ones
+#     follow_symlinks: false    # let a symlink in an allowed directory point out of it
+#     max_copy_mb: 100
 
-# Each alias runs the command of the same name in its target.
+# Each alias runs the command of the same name in a compose service.
+# It can also set user, env and path_translation (scalars override global, lists append, vars merge),
+# and path_mapping (e.g. {.: /app}), otherwise inferred from the container's bind mounts.
 aliases:
+  # Example, not a default:
   # php:
-  #   service: app              # compose service
-  #   # Inferred from the container's bind mounts inside the project when omitted.
-  #   path_mapping:
-  #     .: /app                 # host path (relative to the project root): container path
-  #   user: 1000                # overrides global.user
-  #   env:
-  #     vars:
-  #       APP_ENV: dev          # merged over global.env.vars
+  #   service: app

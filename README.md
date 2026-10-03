@@ -78,7 +78,7 @@ php -v
 
 | Command | |
 |---|---|
-| `dockshim init [-d dir] [--force]` | Create a starter `.dockshim.yaml` |
+| `dockshim init` | Create a starter `.dockshim.yaml` |
 | `dockshim install` | Create the alias entry points in `.dockshim/bin` and remove stale ones |
 | `dockshim config [alias] [--full]` | Summarise the resolved configuration (`--full`: everything, as YAML) |
 | `dockshim validate` | Validate the configuration |

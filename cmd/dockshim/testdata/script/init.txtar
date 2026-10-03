@@ -6,34 +6,19 @@ grep '^aliases:$' .dockshim.yaml
 exec dockshim validate
 stdout 'is valid'
 
-# Existing configs are protected.
-! exec dockshim init
-stderr '.dockshim.yaml already exists, use --force to overwrite'
-
+# An existing config is never overwritten.
 cp custom.yaml .dockshim.yaml
-exec dockshim init --force
-! grep custom .dockshim.yaml
+! exec dockshim init
+stderr '.dockshim.yaml already exists'
+grep custom .dockshim.yaml
 
-# A .yml config would make a second one ambiguous.
+# Nor is a second one created next to a .yml config.
 mkdir yml
 cp custom.yaml yml/.dockshim.yml
-! exec dockshim init -d yml
-stderr 'yml/.dockshim.yml already exists, a second config file would be ambiguous'
-! exists yml/.dockshim.yaml
-
-# --dir picks the project directory.
-mkdir other
-exec dockshim init --dir other
-stdout '^created '$WORK'/other/.dockshim.yaml$'
-cd other
-exec dockshim validate
-stdout 'other/.dockshim.yaml is valid'
-cd $WORK
-
-! exec dockshim init -d missing
-stderr 'missing: no such file or directory'
-! exec dockshim init -d custom.yaml
-stderr 'custom.yaml is not a directory'
+cd yml
+! exec dockshim init
+stderr 'yml/.dockshim.yml already exists'
+! exists .dockshim.yaml
 
 -- custom.yaml --
 # custom
