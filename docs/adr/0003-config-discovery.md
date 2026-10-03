@@ -1,19 +1,15 @@
-# 3. Project layout and config discovery
+# 3. Project root and config discovery
+
+## Context
+Shells and IDEs launch shims, IDEs often from an unrelated working directory.
 
 ## Decision
-- The config is `.dockshim.yaml` at the project root (`.dockshim.yml` also works, both at once is an error). The directory that holds it is the project root.
-- `.dockshim/` belongs to dockshim and only holds generated files. `install` writes the shims to `.dockshim/bin`, and a `.dockshim/.gitignore` of `*` unless one exists.
-- Alias mode walks up from the shim's own directory first, then from cwd. The shim passes its own path.
-- Manager mode walks up from cwd.
-- dockshim reads no environment variables of its own.
-- Paths are resolved against the real (symlink-free) root.
-- Decoding is strict. Every validation problem is reported at once, each with its YAML path.
+- One config file, at the project root. Its directory is the project root.
+- From a shim, discovery walks up from the shim's own location, then from the working directory. Manager commands walk up from the working directory.
+- No flag or environment variable overrides the location.
+- dockshim owns a directory at the root that only holds generated files, and git-ignores itself. Only the config is committed.
 
 ## Why
-- IDEs launch shims from arbitrary directories. Anchoring on the shim's location finds the right project anyway.
-- One config location, next to `compose.yaml`, and one directory of generated files that ignores itself: users never edit a gitignore.
-- `install` writes the `.gitignore`, not `init`: it is never committed, and clones or new worktrees only run `install`.
-- The shims sit in `bin/`, not in `.dockshim/` directly, so that other generated files never land in PATH.
-
-## Consequences
-The workdir is cwd translated through the longest matching path mapping (explicit or inferred, ADR 8). When none matches, no `--workdir` is passed.
+- Anchoring on the shim finds the right project whatever the caller's working directory.
+- Without overrides, the shell, the IDE and scripts always resolve the same config.
+- Generated files never mix with user files: users never edit a gitignore, and a clone only needs `install`.

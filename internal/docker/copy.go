@@ -8,6 +8,7 @@ import (
 )
 
 // CopyArchive extracts a tar stream into dest in container id, keeping the archive's uid/gid.
+// docker cp needs no binary in the container, unlike piping into tar there.
 // dir is the directory docker runs from, as for every call on a target.
 func CopyArchive(r Runner, dir, id, dest string, archive io.Reader) error {
 	return runCapturing(r, Cmd{Dir: dir, Args: []string{"cp", "--archive", "-", id + ":" + dest}, Stdin: archive})

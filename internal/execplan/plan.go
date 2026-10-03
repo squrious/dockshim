@@ -52,6 +52,7 @@ func Run(in Input, stdio Stdio) (int, error) {
 		in.Target = NewTarget(in.Project, in.Alias, in.Runner)
 	}
 	if !in.Target.IsRunning() {
+		// The exec environment, so that compose interpolates the project as it will for the exec.
 		env, _ := environment(in)
 		if err := in.Target.EnsureUp(env, stdio.Err); err != nil {
 			return 1, fmt.Errorf("starting %s: %w", in.Target, err)

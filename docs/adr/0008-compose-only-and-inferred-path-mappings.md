@@ -1,20 +1,15 @@
 # 8. Compose only, and inferred path mappings
 
 ## Decision
-**Compose services are the only target.** A plain container would have to be created by hand, with mounts that `path_mapping` would have to repeat. A five-line `compose.yaml` does the same and starts on demand.
+- Compose services are the only target.
+- Without explicit path mappings, they are inferred from the bind mounts of the running container whose source is in the project.
+- Mappings are read from the container, not from the compose config.
 
-**When `path_mapping` is absent, mappings are inferred.** Once the service is up, `docker inspect` lists the container mounts:
-- Bind mounts whose source is in the project root (symlinks resolved) become mappings.
-- Bind mounts from outside the project (sockets, config files) are skipped. They aren't reported at run time, since IDEs read stderr, but `dockshim config` lists them.
-- Volumes and tmpfs have no host path and are ignored.
-
-Any `path_mapping`, even `{}`, disables inference.
-
-**Mappings come from the container, not from `docker compose config`.** Commands run in the existing container, which keeps the mounts it was created with. After an edit to the compose volumes, or with a different environment interpolating them, the compose config would give mappings that aren't mounted. `dockshim config` reads the compose config only while the service is down, since `up` then creates the container from it.
-
-**Order.** Start the service, read its mounts, then build the command, since the workdir and path translation depend on the mappings. The container id is looked up once per invocation.
+## Why
+- A plain container would be created by hand, with its mounts repeated in the dockshim config. A short compose file does the same, and starts on demand.
+- Inference keeps the compose file the single source of truth for mounts.
+- Commands run in the existing container, which keeps the mounts it was created with. After an edit to the compose volumes, or with another environment interpolating them, the compose config describes mounts that don't exist.
 
 ## Consequences
-- Each invocation with inferred mappings costs one `docker inspect` (~30 ms).
-- Mappings follow the running container: an edit to the compose volumes applies once the container is recreated.
-- With a remote daemon, or a Docker Desktop setup that rewrites bind sources, nothing matches and `path_mapping` must be set.
+- Each run with inferred mappings inspects the container, after starting it and before building the command.
+- With a remote daemon, or a Docker Desktop setup that rewrites bind sources, nothing matches: mappings must be explicit.

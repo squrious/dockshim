@@ -210,7 +210,8 @@ func printList(cmd *cobra.Command, label string, items []string) {
 }
 
 // ignoreDir creates dir with a .gitignore ignoring everything in it, itself included.
-// An existing .gitignore is left alone.
+// An existing .gitignore is left alone. install writes it rather than init, so that it is never
+// committed and a fresh clone gets it from its first install.
 func ignoreDir(dir string) error {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return err

@@ -15,7 +15,8 @@ const (
 	FileName = ".dockshim.yaml"
 	// DirName is the project directory dockshim owns: it holds generated files only, and git-ignores itself.
 	DirName = ".dockshim"
-	// RelBinDir holds the shims, relative to the project root.
+	// RelBinDir holds the shims, relative to the project root. A dedicated directory keeps other
+	// generated files out of PATH.
 	RelBinDir = DirName + "/bin"
 )
 

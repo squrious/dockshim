@@ -9,7 +9,7 @@ import (
 )
 
 // parseDrives reads /proc/self/mountinfo and returns the Windows drives WSL makes visible,
-// keyed by lowercase drive letter: "c" -> "/mnt/c".
+// keyed by lowercase drive letter: "c" -> "/mnt/c". Reading it once replaces a wslpath process per argument.
 func parseDrives(r io.Reader) map[string]string {
 	if r == nil {
 		return nil

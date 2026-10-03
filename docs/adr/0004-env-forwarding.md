@@ -1,8 +1,14 @@
 # 4. Environment forwarding
 
+## Context
+A host command sees the caller's environment, and tools rely on it.
+
 ## Decision
-- Every valid host variable name is forwarded as `--env NAME`, without a value. Docker reads the value from its own environment, so values don't show up in `ps`.
-- Configured `vars` are set in the docker process environment and forwarded the same way. They override host values and bypass deny rules.
-- A built-in denylist removes host-specific variables (`PATH`, `HOME`, `DOCKER_*`, `SSH_*`...). `MISE_` is deliberately kept.
-- Config `deny`, `deny_prefixes` and `allow` extend it (built-in, then global, then alias). `allow` wins over any deny.
-- `user` defaults to `host`, the uid:gid running dockshim, so the files it creates belong to the caller.
+- The host environment is forwarded by default, minus a denylist of variables that describe the host. The config can extend or override it.
+- Variables are forwarded by name only: docker reads the values from its own environment.
+- Commands run as the caller's uid:gid by default.
+
+## Why
+- An allowlist would break every tool reading a variable nobody listed. Host-specific variables are a short, known list.
+- Values in docker's arguments would leak secrets through `ps`.
+- Files created in bind mounts then belong to the caller, as with a host command.
