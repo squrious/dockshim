@@ -80,8 +80,8 @@ func newRoot(e *Env) *cobra.Command {
 					return err
 				}
 				res, err := shim.Install(proj.BinDir(), slices.Sorted(maps.Keys(proj.Aliases)))
-				printList(cmd, "created", res.Created)
-				printList(cmd, "removed", res.Removed)
+				printList(cmd, e.OutStyle.Success("created:"), res.Created)
+				printList(cmd, e.OutStyle.Warning("removed:"), res.Removed)
 				if err != nil {
 					return err
 				}
@@ -89,7 +89,7 @@ func newRoot(e *Env) *cobra.Command {
 					cmd.Printf("\n%s is not in PATH: add it to run the aliases by name.\n", proj.BinDir())
 				}
 				if !commandInPath(e.Environ, config.ToolName) {
-					e.errorf("warning: %s is not in PATH, the shims won't find it", config.ToolName)
+					e.warnf("%s is not in PATH, the shims won't find it", config.ToolName)
 				}
 				return nil
 			},
@@ -105,6 +105,7 @@ func newRoot(e *Env) *cobra.Command {
 			},
 		},
 	)
+	setHelp(root, e.OutStyle)
 	return root
 }
 
@@ -122,7 +123,7 @@ func newConfigCmd(e *Env) *cobra.Command {
 				return err
 			}
 			cache := map[string]*inference{}
-			return printSummary(cmd.OutOrStdout(), proj, func(a *config.ResolvedAlias) *inference {
+			return printSummary(cmd.OutOrStdout(), e.OutStyle, proj, func(a *config.ResolvedAlias) *inference {
 				if inf, ok := cache[a.Service]; ok {
 					return inf
 				}
@@ -197,7 +198,7 @@ func newRunCmd(e *Env) *cobra.Command {
 
 func printList(cmd *cobra.Command, label string, items []string) {
 	if len(items) > 0 {
-		cmd.Printf("%s: %s\n", label, strings.Join(items, ", "))
+		cmd.Printf("%s %s\n", label, strings.Join(items, ", "))
 	}
 }
 

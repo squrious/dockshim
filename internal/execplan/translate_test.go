@@ -2,7 +2,7 @@ package execplan
 
 import (
 	"archive/tar"
-	"bytes"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -129,7 +129,7 @@ func (f *fixture) winSlash(p string) string {
 
 func (f *fixture) build(t *testing.T, cwd string, args ...string) (*Plan, []string, string) {
 	t.Helper()
-	var stderr bytes.Buffer
+	var warnings strings.Builder
 	host := hostpath.New(hostpath.Env{
 		Lookup:    func(k string) (string, bool) { return testDistro, k == "WSL_DISTRO_NAME" },
 		Mountinfo: strings.NewReader(f.mountinfo()),
@@ -142,14 +142,14 @@ func (f *fixture) build(t *testing.T, cwd string, args ...string) (*Plan, []stri
 		Target:    &fakeTarget{},
 		Cwd:       cwd,
 		Args:      append([]string{"php"}, args...),
-		Stderr:    &stderr,
+		Warn:      func(format string, args ...any) { fmt.Fprintf(&warnings, format+"\n", args...) },
 		HostPaths: host,
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 	i := slices.Index(p.Args, "php")
-	return p, p.Args[i+1:], stderr.String()
+	return p, p.Args[i+1:], warnings.String()
 }
 
 var tmpRe = regexp.MustCompile(`/tmp/dockshim-[A-Z2-7]{26}/`)

@@ -38,8 +38,8 @@ func newInitCmd(e *Env) *cobra.Command {
 			if err := os.WriteFile(target, initTemplate, 0o644); err != nil {
 				return err
 			}
-			cmd.Printf("created %s\n", target)
-			cmd.Println("\nNext: declare aliases, then run `dockshim install`.")
+			cmd.Printf("%s %s\n", e.OutStyle.Success("created"), target)
+			cmd.Printf("\n%s declare aliases, then run `dockshim install`.\n", e.OutStyle.Title("Next:"))
 			return nil
 		},
 	}

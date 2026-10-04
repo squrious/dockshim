@@ -1,11 +1,14 @@
 package cli
 
 import (
+	"regexp"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/squrious/dockshim/internal/config"
 	"github.com/squrious/dockshim/internal/pathmap"
+	"github.com/squrious/dockshim/internal/style"
 )
 
 func TestMappingLines(t *testing.T) {
@@ -28,10 +31,28 @@ func TestMappingLines(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := mappingLines("/proj", tt.alias, func(*config.ResolvedAlias) *inference { return tt.inf })
+			got := mappingLines(style.Style{}, "/proj", tt.alias, func(*config.ResolvedAlias) *inference { return tt.inf })
 			if !slices.Equal(got, tt.want) {
 				t.Fatalf("got %q", got)
 			}
 		})
 	}
 }
+
+// Styled keys keep their columns aligned: they are padded before styling.
+func TestPrintSummaryStyled(t *testing.T) {
+	p := &config.Project{Root: "/proj", File: "/proj/.dockshim.yaml", Aliases: map[string]*config.ResolvedAlias{
+		"php": {Service: "tools", User: "1000", PathMapping: pathmap.Map{{Host: "/proj", Container: "/app"}}},
+	}}
+	var plain, styled strings.Builder
+	must(t, printSummary(&plain, style.Style{}, p, nil))
+	must(t, printSummary(&styled, style.Style{Enabled: true}, p, nil))
+	if !strings.Contains(styled.String(), "\x1b[1mphp\x1b[0m\n") || !strings.Contains(styled.String(), "  \x1b[36mservice\x1b[0m") {
+		t.Fatalf("styled = %q", styled.String())
+	}
+	if got := ansiRe.ReplaceAllString(styled.String(), ""); got != plain.String() {
+		t.Fatalf("stripped = %q, want %q", got, plain.String())
+	}
+}
+
+var ansiRe = regexp.MustCompile(`\x1b\[[0-9;]*m`)

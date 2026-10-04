@@ -84,6 +84,8 @@ php -v
 | `dockshim run <alias> [args]` | Run an alias without its shim |
 | `dockshim version` | Print the version |
 
+Output is colored on a terminal only. Set `NO_COLOR` to turn colors off.
+
 ## Documentation
 
 - [Installation](docs/install.md): install script, mise, manual download, go install.

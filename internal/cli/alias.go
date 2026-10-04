@@ -41,7 +41,7 @@ func execAlias(e *Env, proj *config.Project, name, cwd string, args []string) in
 		Environ: e.Environ,
 		Args:    append([]string{name}, args...),
 		TTY:     e.TTY,
-		Stderr:  e.Stderr,
+		Warn:    e.warnf,
 	}, execplan.Stdio{In: e.Stdin, Out: e.Stdout, Err: e.Stderr})
 	if err != nil {
 		e.errorf("%v", err)
@@ -68,5 +68,5 @@ func warnOutdatedShims(e *Env, proj *config.Project) {
 			parts = append(parts, g.label+": "+strings.Join(g.names, ", "))
 		}
 	}
-	e.errorf("warning: shims are out of date (%s), run `%s install`", strings.Join(parts, "; "), config.ToolName)
+	e.warnf("shims are out of date (%s), run `%s install`", strings.Join(parts, "; "), config.ToolName)
 }

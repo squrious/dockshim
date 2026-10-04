@@ -1,0 +1,22 @@
+# Output is plain when it doesn't go to a terminal.
+exec dockshim config
+stdout '^php$'
+! stdout '\x1b'
+exec dockshim install
+stdout '^created: php$'
+! stdout '\x1b'
+! exec dockshim nope
+stderr '^dockshim: unknown command "nope"'
+! stderr '\x1b'
+
+# Help is rendered by dockshim, from each command's fields.
+exec dockshim --help
+stdout '^Usage:$'
+stdout '^  config +Print the effective configuration$'
+! stdout '\x1b'
+exec dockshim run --help
+stdout '^  dockshim run <alias> \[args\.\.\.\] \[flags\]$'
+
+-- .dockshim.yaml --
+aliases:
+  php: {service: tools}

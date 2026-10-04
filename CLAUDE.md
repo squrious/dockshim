@@ -26,6 +26,7 @@ Everything goes through the project `mise.toml`. Never modify the global mise co
 - `internal/docker`: `Runner` (os/exec) and `Target` (implemented by `Compose`).
 - `internal/execplan`: `Run` → start service, infer mappings, `Build` a `Plan`, `Execute` it. Path translation is in `translate.go`.
 - `internal/shim`: check, create and prune entry points.
+- `internal/style`: ANSI styles for dockshim's own output, off unless the stream is a terminal and `NO_COLOR` is empty.
 - `scripts/install.sh`: POSIX installer, attached to releases by GoReleaser. Its env vars (`DOCKSHIM_VERSION`, `DOCKSHIM_INSTALL_DIR`) are a public contract: keep them stable and documented in `docs/install.md`.
 
 Injection rules:

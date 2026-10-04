@@ -24,6 +24,16 @@ type Plan struct {
 	// PreRun steps run before the command; PostRun steps always run after it, in reverse order.
 	PreRun  []Step
 	PostRun []Step
+	Warn    WarnFunc
+}
+
+// WarnFunc reports a problem that doesn't stop the command. A nil WarnFunc discards it.
+type WarnFunc func(format string, args ...any)
+
+func (w WarnFunc) warn(format string, args ...any) {
+	if w != nil {
+		w(format, args...)
+	}
 }
 
 // Input describes one alias invocation.
@@ -36,9 +46,9 @@ type Input struct {
 	Cwd     string // real path
 	Environ []string
 	// Args is the command line to run in the container. Args[0], the command name, is never translated.
-	Args   []string
-	TTY    bool
-	Stderr io.Writer // warnings
+	Args []string
+	TTY  bool
+	Warn WarnFunc
 	// HostPaths decides what a host path means on this machine. Detected when nil and needed.
 	HostPaths *hostpath.Resolver
 }
@@ -80,7 +90,7 @@ func Build(in Input) (*Plan, error) {
 	if in.Target == nil {
 		in.Target = NewTarget(in.Project, in.Alias, in.Runner)
 	}
-	p := &Plan{Target: in.Target, Runner: in.Runner}
+	p := &Plan{Target: in.Target, Runner: in.Runner, Warn: in.Warn}
 	workdir, _ := in.Alias.PathMapping.ToContainer(in.Cwd)
 
 	args := in.Args
@@ -88,8 +98,7 @@ func Build(in Input) (*Plan, error) {
 		if in.HostPaths == nil {
 			in.HostPaths = hostpath.Detect(in.Alias.PathTranslation.Allow)
 		}
-		warn := func(format string, args ...any) { warnf(in.Stderr, format, args...) }
-		args = newPathTranslator(in, workdir, warn).transform(p, args)
+		args = newPathTranslator(in, workdir, in.Warn.warn).transform(p, args)
 	}
 
 	var names []string
@@ -126,7 +135,7 @@ func NewTarget(p *config.Project, a *config.ResolvedAlias, r docker.Runner) *doc
 	return c
 }
 
-// Stdio are the streams given to the command. Err also receives dockshim warnings.
+// Stdio are the streams given to the command.
 type Stdio struct {
 	In       io.Reader
 	Out, Err io.Writer
@@ -138,7 +147,7 @@ func Execute(p *Plan, stdio Stdio) (int, error) {
 	defer func() {
 		for _, step := range slices.Backward(p.PostRun) {
 			if err := step(); err != nil {
-				warnf(stdio.Err, "%v", err)
+				p.Warn.warn("%v", err)
 			}
 		}
 	}()
@@ -155,10 +164,4 @@ func runSteps(steps []Step) error {
 		}
 	}
 	return nil
-}
-
-func warnf(w io.Writer, format string, args ...any) {
-	if w != nil {
-		_, _ = fmt.Fprintf(w, config.ToolName+": warning: "+format+"\n", args...)
-	}
 }

@@ -3,6 +3,7 @@ package execplan
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"io"
 	"slices"
 	"strings"
@@ -148,18 +149,18 @@ func TestExecute(t *testing.T) {
 }
 
 func TestExecutePostRunFailureWarns(t *testing.T) {
-	var log []string
-	var stderr bytes.Buffer
+	var log, warnings []string
 	p := &Plan{
 		Target:  &fakeTarget{running: []bool{true}, log: &log},
 		Runner:  &fakeRunner{codes: []int{0}, log: &log},
 		PostRun: []Step{func() error { return errors.New("cleanup failed") }},
+		Warn:    func(format string, args ...any) { warnings = append(warnings, fmt.Sprintf(format, args...)) },
 	}
-	if code, err := Execute(p, Stdio{Err: &stderr}); code != 0 || err != nil {
+	if code, err := Execute(p, Stdio{}); code != 0 || err != nil {
 		t.Fatalf("code=%d err=%v", code, err)
 	}
-	if stderr.String() != "dockshim: warning: cleanup failed\n" {
-		t.Fatalf("stderr = %q", stderr.String())
+	if !slices.Equal(warnings, []string{"cleanup failed"}) {
+		t.Fatalf("warnings = %q", warnings)
 	}
 }
 
