@@ -102,7 +102,7 @@ func newFixture(t *testing.T) *fixture {
 			{Host: f.proj, Container: "/app"},
 			{Host: filepath.Join(f.proj, "assets"), Container: "/assets/build"},
 		},
-		PathTranslation: config.ResolvedPathTranslation{Enabled: true, MaxCopyMB: 1},
+		PathTranslation: config.ResolvedPathTranslation{Enabled: true},
 	}
 	return f
 }
@@ -134,7 +134,7 @@ func (f *fixture) build(t *testing.T, cwd string, args ...string) (*Plan, []stri
 		Lookup:    func(k string) (string, bool) { return testDistro, k == "WSL_DISTRO_NAME" },
 		Mountinfo: strings.NewReader(f.mountinfo()),
 		TempDirs:  []string{f.tmp},
-	}, hostOptions(f.alias))
+	}, f.alias.PathTranslation.Allow)
 	p, err := Build(Input{
 		Project:   &config.Project{Root: f.proj},
 		Alias:     f.alias,
@@ -271,18 +271,6 @@ func TestTranslateArgs(t *testing.T) {
 		}
 	})
 
-	t.Run("too large", func(t *testing.T) {
-		f := newFixture(t)
-		must(t, os.WriteFile(filepath.Join(f.tmp, "big"), make([]byte, 1<<20+1), 0o644))
-		p, args, stderr := f.build(t, f.base, "tmp/big", "tmp/a.txt")
-		if got := normalize(args); !slices.Equal(got, []string{"tmp/big", "/tmp/X/0/a.txt"}) || len(p.PreRun) != 1 {
-			t.Fatalf("args = %q", got)
-		}
-		if !strings.Contains(stderr, "not copying tmp/big into the container: too large") {
-			t.Fatalf("stderr = %s", stderr)
-		}
-	})
-
 	t.Run("unreadable file", func(t *testing.T) {
 		if os.Getuid() == 0 {
 			t.Skip("root reads everything")
@@ -307,21 +295,14 @@ func TestTranslateArgs(t *testing.T) {
 	})
 
 	t.Run("symlink out of an allowed path", func(t *testing.T) {
-		for _, follow := range []bool{false, true} {
-			f := newFixture(t)
-			f.alias.PathTranslation.FollowSymlinks = follow
-			must(t, os.Symlink(filepath.Join(f.other, "hidden.txt"), filepath.Join(f.tmp, "escape.txt")))
-			_, args, stderr := f.build(t, f.tmp, "escape.txt")
-			want := []string{"escape.txt"}
-			if follow {
-				want = []string{"/tmp/X/0/escape.txt"}
-			}
-			if got := normalize(args); !slices.Equal(got, want) {
-				t.Fatalf("follow_symlinks=%v: args = %q, want %q", follow, got, want)
-			}
-			if stderr != "" {
-				t.Fatalf("stderr = %q", stderr)
-			}
+		f := newFixture(t)
+		must(t, os.Symlink(filepath.Join(f.other, "hidden.txt"), filepath.Join(f.tmp, "escape.txt")))
+		_, args, stderr := f.build(t, f.tmp, "escape.txt")
+		if got := normalize(args); !slices.Equal(got, []string{"escape.txt"}) {
+			t.Fatalf("args = %q", got)
+		}
+		if stderr != "" {
+			t.Fatalf("stderr = %q", stderr)
 		}
 	})
 }

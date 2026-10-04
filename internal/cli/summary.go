@@ -5,7 +5,6 @@ import (
 	"io"
 	"maps"
 	"slices"
-	"strconv"
 	"strings"
 	"text/tabwriter"
 
@@ -113,12 +112,6 @@ func translationLines(pt config.ResolvedPathTranslation) []string {
 	var lines []string
 	if len(pt.Allow) > 0 {
 		lines = append(lines, "allow "+strings.Join(pt.Allow, ", "))
-	}
-	if pt.FollowSymlinks {
-		lines = append(lines, "follow_symlinks")
-	}
-	if pt.MaxCopyMB != config.DefaultMaxCopyMB {
-		lines = append(lines, "max_copy_mb "+strconv.Itoa(pt.MaxCopyMB))
 	}
 	return lines
 }

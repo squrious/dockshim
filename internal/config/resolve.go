@@ -17,11 +17,8 @@ import (
 	"github.com/squrious/dockshim/internal/pathmap"
 )
 
-const (
-	// UserHost runs commands as the uid:gid running dockshim. It is the default user.
-	UserHost         = "host"
-	DefaultMaxCopyMB = 100
-)
+// UserHost runs commands as the uid:gid running dockshim. It is the default user.
+const UserHost = "host"
 
 // Project is a fully resolved configuration: paths are absolute, aliases merged with global.
 type Project struct {
@@ -54,9 +51,6 @@ type ResolvedPathTranslation struct {
 	// Allow lists host directories whose files may be copied into the container,
 	// on top of the system temporary directories, which always are.
 	Allow []string
-	// FollowSymlinks lets a symlink inside an allowed directory point outside it.
-	FollowSymlinks bool
-	MaxCopyMB      int
 }
 
 // Load parses, validates and resolves the config file, interpolating values with lookup.
@@ -138,9 +132,6 @@ func (f *File) Resolve(file string) *Project {
 			PathTranslation: ResolvedPathTranslation{
 				Enabled: cmp.Or(a.PathTranslation.Enabled, f.Global.PathTranslation.Enabled, "true").Bool(),
 				Allow:   cleanAll(concat(f.Global.PathTranslation.Allow, a.PathTranslation.Allow)),
-				FollowSymlinks: cmp.Or(a.PathTranslation.FollowSymlinks,
-					f.Global.PathTranslation.FollowSymlinks, "false").Bool(),
-				MaxCopyMB: cmp.Or(a.PathTranslation.MaxCopyMB, f.Global.PathTranslation.MaxCopyMB).Int(DefaultMaxCopyMB),
 			},
 		}
 		for _, vars := range []map[string]Scalar{f.Global.Env.Vars, a.Env.Vars} {

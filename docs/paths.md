@@ -28,17 +28,15 @@ Each argument (or the value of `--opt=value`) that resolves to a host path is ha
 - **A file in an allowed directory** is copied into `/tmp/dockshim-<random>/` in the container, and the copy is removed after the command. The allowed directories are the system temporary ones (`TMPDIR`, `/tmp`, `/var/tmp`) plus `allow`. Copying is meant for the throwaway files a tool hands a command, such as an IDE test runner script. Copies are one-way: changes made in the container are lost.
 - **Anything else** keeps its value, so it means the container's own path. This is silent.
 
-Directories are never copied. dockshim warns when a path in an allowed directory can't be copied: a directory, an unreadable or special file, or a file over the size cap.
+Directories are never copied. dockshim warns when a path in an allowed directory can't be copied: a directory, or an unreadable or special file.
 
-A symlink counts where it points: a link in `/tmp` to a file elsewhere is not copied, unless `follow_symlinks` is set.
+A symlink counts where it points: a link in `/tmp` to a file elsewhere is not copied. To copy it, allow the directory it points into.
 
 ```yaml
 global:
   path_translation:
     enabled: true               # default
     allow: [/srv/fixtures]      # extra directories whose files may be copied
-    follow_symlinks: false      # true lets a link in an allowed directory point out of it
-    max_copy_mb: 100            # default; larger files are left untouched
 ```
 
 `allow: ["/"]` copies from anywhere. Cleanup needs `rm` in the container.

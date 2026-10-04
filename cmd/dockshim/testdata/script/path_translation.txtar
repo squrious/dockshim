@@ -42,15 +42,12 @@ exec wide /usr/bin/env
 stdout '^cmd wide /tmp/dockshim-[A-Z2-7]{26}/0/env$'
 grep '^cp --archive - abc123:/tmp$' $FAKE_DOCKER_STATE/calls
 
-# A symlink may not leave an allowed directory, unless follow_symlinks says so.
+# A symlink counts where it points: it may not leave an allowed directory.
 symlink $WORK/outside/escape.txt -> /usr/bin/env
 rm $FAKE_DOCKER_STATE/calls
 exec php $WORK/outside/escape.txt
 stdout '^cmd php '$WORK'/outside/escape.txt$'
 ! grep '^cp ' $FAKE_DOCKER_STATE/calls
-exec links $WORK/outside/escape.txt
-stdout '^cmd links /tmp/dockshim-[A-Z2-7]{26}/0/escape.txt$'
-grep '^cp --archive - abc123:/tmp$' $FAKE_DOCKER_STATE/calls
 
 # Under WSL, a Windows path naming a file in this distribution is translated.
 env WSL_DISTRO_NAME=Ubuntu-24.04
@@ -95,10 +92,6 @@ aliases:
     service: tools
     path_mapping: {.: /app}
     path_translation: {allow: [/usr/bin]}
-  links:
-    service: tools
-    path_mapping: {.: /app}
-    path_translation: {follow_symlinks: true}
 -- proj/src/in.txt --
 in
 -- outside/a.txt --

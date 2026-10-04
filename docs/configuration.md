@@ -21,8 +21,6 @@ global:                         # defaults for every alias
   path_translation:             # see paths.md
     enabled: true
     allow: []
-    follow_symlinks: false
-    max_copy_mb: 100
 
 aliases:
   php:                          # the alias name is the command run in the container

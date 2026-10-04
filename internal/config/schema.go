@@ -30,10 +30,8 @@ type Global struct {
 
 // PathTranslation configures how host paths given as arguments are made usable in the container.
 type PathTranslation struct {
-	Enabled        Scalar   `yaml:"enabled"`
-	Allow          []string `yaml:"allow"`
-	FollowSymlinks Scalar   `yaml:"follow_symlinks"`
-	MaxCopyMB      Scalar   `yaml:"max_copy_mb"`
+	Enabled Scalar   `yaml:"enabled"`
+	Allow   []string `yaml:"allow"`
 }
 
 // Env configures which host variables are forwarded, and which are set.
@@ -72,12 +70,4 @@ func (s *Scalar) UnmarshalYAML(n *yaml.Node) error {
 func (s Scalar) Bool() bool {
 	b, _ := strconv.ParseBool(string(s))
 	return b
-}
-
-// Int assumes a validated value, and returns def when it is empty or not an integer.
-func (s Scalar) Int(def int) int {
-	if n, err := strconv.Atoi(string(s)); err == nil {
-		return n
-	}
-	return def
 }

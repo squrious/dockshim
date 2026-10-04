@@ -18,8 +18,6 @@
 #   path_translation:           # https://github.com/squrious/dockshim/blob/main/docs/paths.md#path-translation
 #     enabled: true
 #     allow: []                 # directories whose files may be copied, on top of the system temporary ones
-#     follow_symlinks: false    # let a symlink in an allowed directory point out of it
-#     max_copy_mb: 100
 
 # Each alias runs the command of the same name in a compose service.
 # It can also set user, env and path_translation (scalars override global, lists append, vars merge),

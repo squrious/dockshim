@@ -19,4 +19,4 @@ Under WSL, the Windows paths a Windows tool passes are converted to Linux paths 
 
 ## Consequences
 - Copies are one-way: in-place edits made in the container are lost.
-- An argument that happens to name a file in an allowed directory is copied. A size cap bounds the cost.
+- An argument that happens to name a file in an allowed directory is copied.

@@ -31,7 +31,6 @@ type pathTranslator struct {
 	// cwdContainer is the container working directory, empty when the cwd is not mapped.
 	cwdContainer string
 	host         *hostpath.Resolver
-	maxBytes     int64
 	uid, gid     int // -1 when unknown
 	warn         func(format string, args ...any)
 }
@@ -41,23 +40,13 @@ type copyItem struct {
 	name string // path inside the temporary directory
 }
 
-// hostOptions is the host path policy an alias configures.
-func hostOptions(a *config.ResolvedAlias) hostpath.Options {
-	return hostpath.Options{
-		Allow:          a.PathTranslation.Allow,
-		FollowSymlinks: a.PathTranslation.FollowSymlinks,
-	}
-}
-
 func newPathTranslator(in Input, cwdContainer string, warn func(string, ...any)) *pathTranslator {
 	uid, gid := numericUser(in.Alias.User)
-	pt := in.Alias.PathTranslation
 	return &pathTranslator{
 		mappings:     in.Alias.PathMapping,
 		cwd:          in.Cwd,
 		cwdContainer: cwdContainer,
 		host:         in.HostPaths,
-		maxBytes:     int64(pt.MaxCopyMB) << 20,
 		uid:          uid,
 		gid:          gid,
 		warn:         warn,
@@ -70,7 +59,6 @@ func (t *pathTranslator) transform(p *Plan, args []string) []string {
 	base := config.ToolName + "-" + rand.Text()
 	copies := map[string]string{}
 	var items []copyItem
-	var total int64
 
 	// args[0] is the command itself.
 	for i := 1; i < len(args); i++ {
@@ -82,12 +70,10 @@ func (t *pathTranslator) transform(p *Plan, args []string) []string {
 		if tr.copyFrom != "" {
 			ctr, seen := copies[tr.copyFrom]
 			if !seen {
-				size, err := copyableSize(tr.copyFrom, t.maxBytes-total)
-				if err != nil {
+				if err := readable(tr.copyFrom); err != nil {
 					t.warn("not copying %s into the container: %v", value, err)
 					continue
 				}
-				total += size
 				item := copyItem{host: tr.copyFrom, name: path.Join(strconv.Itoa(len(items)), tr.name)}
 				items = append(items, item)
 				ctr = path.Join(containerTmp, base, item.name)
@@ -152,7 +138,7 @@ func (t *pathTranslator) translate(value string) translation {
 	if err != nil {
 		return untranslated(value, win)
 	}
-	if !t.host.Allowed(abs, real) {
+	if !t.host.Allowed(real) {
 		return untranslated(value, win)
 	}
 	fi, err := os.Stat(real)
@@ -270,22 +256,14 @@ func (t *pathTranslator) owned(h *tar.Header) *tar.Header {
 	return h
 }
 
-var errTooLarge = errors.New("too large, see path_translation.max_copy_mb")
-
-// copyableSize returns the size of a readable file, within limit.
-func copyableSize(host string, limit int64) (int64, error) {
-	fi, err := os.Stat(host)
-	if err != nil {
-		return 0, err
-	}
-	if fi.Size() > limit {
-		return 0, errTooLarge
-	}
+// readable checks a file can be opened, so that a copy failure is a warning rather than an
+// error once the archive is being written.
+func readable(host string) error {
 	f, err := os.Open(host)
 	if err != nil {
-		return 0, err
+		return err
 	}
-	return fi.Size(), f.Close()
+	return f.Close()
 }
 
 // splitOption separates "--opt=" from its value. Other options have no value to translate.

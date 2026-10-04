@@ -14,7 +14,6 @@ global:
   user: 1000
   path_translation:
     allow: [/data]
-    max_copy_mb: 5
   env:
     deny: [FOO]
     vars: {A: global}
@@ -32,7 +31,6 @@ aliases:
     path_translation:
       enabled: false
       allow: [/data2/]
-      follow_symlinks: true
 -- want.txt --
 config   $WORK/.dockshim.yaml
 compose  project_name demo
@@ -55,4 +53,3 @@ php
   env               deny FOO
                     vars A
   path_translation  allow /data
-                    max_copy_mb 5

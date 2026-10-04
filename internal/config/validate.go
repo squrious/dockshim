@@ -114,16 +114,6 @@ func validatePathTranslation(add func(string, string, ...any), field string, pt 
 			add(field+".enabled", "invalid boolean %q", pt.Enabled)
 		}
 	}
-	if pt.FollowSymlinks != "" {
-		if _, err := strconv.ParseBool(string(pt.FollowSymlinks)); err != nil {
-			add(field+".follow_symlinks", "invalid boolean %q", pt.FollowSymlinks)
-		}
-	}
-	if pt.MaxCopyMB != "" {
-		if n, err := strconv.Atoi(string(pt.MaxCopyMB)); err != nil || n <= 0 {
-			add(field+".max_copy_mb", "must be a positive integer, got %q", pt.MaxCopyMB)
-		}
-	}
 	for i, p := range pt.Allow {
 		if !filepath.IsAbs(p) && !hostpath.IsWindows(p) {
 			add(fmt.Sprintf("%s.allow[%d]", field, i), "host path %q must be absolute", p)

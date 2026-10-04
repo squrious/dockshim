@@ -134,12 +134,10 @@ aliases: {php: {service: a, env: {deny_prefixes: [""]}}}
 			`aliases.php.env.deny_prefixes[0]: invalid variable name ""`,
 		}},
 		{"path translation", `
-global: {path_translation: {enabled: maybe, max_copy_mb: 0, allow: [rel], follow_symlinks: sometimes}}
-aliases: {php: {service: a, path_translation: {enabled: "false", max_copy_mb: "${X:-12}", allow: [/ok, 'C:\tmp']}}}
+global: {path_translation: {enabled: maybe, allow: [rel]}}
+aliases: {php: {service: a, path_translation: {enabled: "${X:-false}", allow: [/ok, 'C:\tmp']}}}
 `, []string{
 			`global.path_translation.enabled: invalid boolean "maybe"`,
-			`global.path_translation.follow_symlinks: invalid boolean "sometimes"`,
-			`global.path_translation.max_copy_mb: must be a positive integer, got "0"`,
 			`global.path_translation.allow[0]: host path "rel" must be absolute`,
 		}},
 	}
@@ -267,7 +265,7 @@ func TestResolveDefaults(t *testing.T) {
 		t.Fatalf("user = %q, want %q", got, want)
 	}
 	pt := p.Aliases["php"].PathTranslation
-	if !pt.Enabled || pt.FollowSymlinks || pt.MaxCopyMB != DefaultMaxCopyMB || len(pt.Allow) != 0 {
+	if !pt.Enabled || len(pt.Allow) != 0 {
 		t.Fatalf("path translation defaults = %+v", pt)
 	}
 }

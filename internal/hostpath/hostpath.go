@@ -24,38 +24,32 @@ type Env struct {
 	TempDirs  []string
 }
 
-// Options mirrors the resolved path_translation configuration.
-type Options struct {
-	Allow          []string
-	FollowSymlinks bool
-}
-
 // Resolver answers what a host path means on this machine, for one alias's path_translation.
 type Resolver struct {
 	distro string
 	drives map[string]string // lowercase drive letter -> mount point
 	roots  []string          // absolute, cleaned, symlinks resolved
-	follow bool
 }
 
-// Detect builds a Resolver from the running machine.
-func Detect(opts Options) *Resolver {
+// Detect builds a Resolver from the running machine. allow lists the directories, on top of the
+// temporary ones, whose files may be copied.
+func Detect(allow []string) *Resolver {
 	env := Env{Lookup: os.LookupEnv, TempDirs: append([]string{os.TempDir()}, unixTempDirs...)}
 	if f, err := os.Open("/proc/self/mountinfo"); err == nil {
 		defer func() { _ = f.Close() }()
 		env.Mountinfo = f
 	}
-	return New(env, opts)
+	return New(env, allow)
 }
 
 // New builds a Resolver from what env reports about the machine. Allowed directories that are
 // Windows paths are converted, relative ones ignored (validation rejects them).
-func New(env Env, opts Options) *Resolver {
-	r := &Resolver{drives: parseDrives(env.Mountinfo), follow: opts.FollowSymlinks}
+func New(env Env, allow []string) *Resolver {
+	r := &Resolver{drives: parseDrives(env.Mountinfo)}
 	if env.Lookup != nil {
 		r.distro, _ = env.Lookup("WSL_DISTRO_NAME")
 	}
-	for _, p := range slices.Concat(env.TempDirs, opts.Allow) {
+	for _, p := range slices.Concat(env.TempDirs, allow) {
 		if p == "" {
 			continue
 		}
@@ -137,15 +131,11 @@ func (r *Resolver) fromUNC(rest string) (string, bool) {
 	return filepath.Join("/", parts[2]), true
 }
 
-// Allowed reports whether a host file may be copied into the container. abs is the argument
-// resolved to an absolute path, real is that path with its symlinks resolved.
-func (r *Resolver) Allowed(abs, real string) bool {
-	return r.inRoot(real) || (r.follow && r.inRoot(abs))
-}
-
-func (r *Resolver) inRoot(p string) bool {
-	return slices.ContainsFunc(r.roots, func(root string) bool { return pathmap.Within(root, p) }) ||
-		r.isWindowsTemp(p)
+// Allowed reports whether a host file may be copied into the container. real is its path with
+// symlinks resolved: a link counts where it points.
+func (r *Resolver) Allowed(real string) bool {
+	return slices.ContainsFunc(r.roots, func(root string) bool { return pathmap.Within(root, real) }) ||
+		r.isWindowsTemp(real)
 }
 
 // isWindowsTemp matches the default Windows temporary directories, seen through a drive mount.

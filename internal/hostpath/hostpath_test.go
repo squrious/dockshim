@@ -18,13 +18,13 @@ const (
 `
 )
 
-func newTest(t *testing.T, mountinfo, distro string, tempDirs []string, opts Options) *Resolver {
+func newTest(t *testing.T, mountinfo, distro string, tempDirs, allow []string) *Resolver {
 	t.Helper()
 	return New(Env{
 		Lookup:    func(string) (string, bool) { return distro, distro != "" },
 		Mountinfo: strings.NewReader(mountinfo),
 		TempDirs:  tempDirs,
-	}, opts)
+	}, allow)
 }
 
 func TestParseDrives(t *testing.T) {
@@ -95,7 +95,7 @@ func TestIsWindows(t *testing.T) {
 }
 
 func TestToLinux(t *testing.T) {
-	r := newTest(t, wsl2Mountinfo, "Ubuntu-24.04", nil, Options{})
+	r := newTest(t, wsl2Mountinfo, "Ubuntu-24.04", nil, nil)
 	tests := []struct {
 		name  string
 		value string
@@ -130,7 +130,7 @@ func TestToLinux(t *testing.T) {
 	}
 
 	t.Run("outside wsl", func(t *testing.T) {
-		off := newTest(t, linuxMountinfo, "", nil, Options{})
+		off := newTest(t, linuxMountinfo, "", nil, nil)
 		for _, v := range []string{`C:\x`, `\\wsl.localhost\Ubuntu-24.04\home\me`} {
 			if got, ok := off.ToLinux(v); ok {
 				t.Errorf("ToLinux(%q) = %q, want no conversion", v, got)
@@ -140,9 +140,8 @@ func TestToLinux(t *testing.T) {
 }
 
 func TestAllowed(t *testing.T) {
-	r := newTest(t, wsl2Mountinfo, "Ubuntu-24.04", []string{"/custom/tmp", "/tmp", "/var/tmp"}, Options{
-		Allow: []string{"/srv/fixtures/", `E:\shared`, "relative/ignored"},
-	})
+	r := newTest(t, wsl2Mountinfo, "Ubuntu-24.04", []string{"/custom/tmp", "/tmp", "/var/tmp"},
+		[]string{"/srv/fixtures/", `E:\shared`, "relative/ignored"})
 	tests := []struct {
 		name string
 		path string
@@ -167,53 +166,16 @@ func TestAllowed(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := r.Allowed(tt.path, tt.path); got != tt.want {
+			if got := r.Allowed(tt.path); got != tt.want {
 				t.Errorf("Allowed(%q) = %v, want %v", tt.path, got, tt.want)
 			}
 		})
 	}
 }
 
-// A symlink is described by two paths: where it sits, and what it points at.
-func TestAllowedSymlinks(t *testing.T) {
-	const (
-		link    = "/srv/fixtures/link.txt"
-		outside = "/opt/data/secret.txt"
-		inside  = "/srv/fixtures/plain.txt"
-	)
-	for _, tt := range []struct {
-		name   string
-		follow bool
-		want   bool
-	}{
-		{"off by default", false, false},
-		{"follow_symlinks", true, true},
-	} {
-		t.Run(tt.name, func(t *testing.T) {
-			r := newTest(t, linuxMountinfo, "", nil, Options{
-				Allow: []string{"/srv/fixtures"}, FollowSymlinks: tt.follow,
-			})
-			if got := r.Allowed(link, outside); got != tt.want {
-				t.Errorf("link out of an allowed root: got %v, want %v", got, tt.want)
-			}
-			// Neither a plain file inside nor one fully outside is affected.
-			if !r.Allowed(inside, inside) {
-				t.Error("a plain file in an allowed root should be allowed")
-			}
-			if r.Allowed(outside, outside) {
-				t.Error("a file outside every root should not be allowed")
-			}
-			// A link pointing into an allowed root is allowed whatever the setting.
-			if !r.Allowed("/opt/data/link.txt", inside) {
-				t.Error("a link into an allowed root should be allowed")
-			}
-		})
-	}
-}
-
 func TestAllowedWindowsRoot(t *testing.T) {
-	r := newTest(t, wsl2Mountinfo, "Ubuntu-24.04", nil, Options{Allow: []string{`C:\shared`}})
-	if !r.Allowed("/mnt/c/shared/x.txt", "/mnt/c/shared/x.txt") {
+	r := newTest(t, wsl2Mountinfo, "Ubuntu-24.04", nil, []string{`C:\shared`})
+	if !r.Allowed("/mnt/c/shared/x.txt") {
 		t.Error("a Windows allow entry should be converted to its Linux path")
 	}
 }

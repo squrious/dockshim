@@ -88,7 +88,7 @@ func Build(in Input) (*Plan, error) {
 	args := in.Args
 	if in.Alias.PathTranslation.Enabled {
 		if in.HostPaths == nil {
-			in.HostPaths = hostpath.Detect(hostOptions(in.Alias))
+			in.HostPaths = hostpath.Detect(in.Alias.PathTranslation.Allow)
 		}
 		warn := func(format string, args ...any) { warnf(in.Stderr, format, args...) }
 		args = newPathTranslator(in, workdir, warn).transform(p, args)
