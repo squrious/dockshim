@@ -178,7 +178,10 @@ func newRunCmd(e *Env) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if code := execAlias(e, proj, args[0], shimPath, cwd, args[1:]); code != 0 {
+			if shimPath != "" && e.Interactive {
+				warnOutdatedShims(e, proj)
+			}
+			if code := execAlias(e, proj, args[0], cwd, args[1:]); code != 0 {
 				return exitCodeError(code)
 			}
 			return nil

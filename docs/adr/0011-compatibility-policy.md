@@ -5,7 +5,7 @@ Supersedes ADR 9.
 ## Decision
 - **Shims are generated cache**, never committed. `install` owns their directory: it makes it hold exactly one script per alias, rewriting any script that differs from what the running version writes.
 - **The runtime contract is `dockshim run --shim <path> <alias> [args]`.** A shim written by one version may run with another, so the contract stays stable in both directions.
-- **Alias mode prints nothing but errors**, since IDEs and scripts parse its output. Notices and deprecations only appear in manager commands.
+- **Alias mode prints nothing but errors**, since IDEs and scripts parse its output. On a terminal, it also warns when the shims differ from the config: a human reads it there. Other notices and deprecations only appear in manager commands.
 - **Config deprecations**: a deprecated key keeps working, with a warning, until the next breaking release. Before 1.0, a change may break directly.
 
 ## Why

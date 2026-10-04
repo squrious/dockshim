@@ -1,15 +1,16 @@
-# A shim whose alias was removed from the config reports it (no prompt without a terminal).
+# A shim whose alias was removed from the config fails like an unknown command. Without a
+# terminal, nothing else is printed: the out-of-date warning is for humans only.
 exec dockshim install
 cp config2.yaml .dockshim.yaml
 env PATH=$WORK/.dockshim/bin${:}$PATH
 exec sh -c 'node; echo code=$?'
 stdout '^code=127$'
-stderr 'alias "node" is not defined in '$WORK'/.dockshim.yaml'
-stderr 'is a stale shim, run `dockshim install` to remove it'
+stderr '^dockshim: alias "node" is not defined in '$WORK'/.dockshim.yaml$'
+! stderr warning
 exists .dockshim/bin/node
 ! exists $FAKE_DOCKER_STATE/calls
 
-# A copy outside .dockshim/bin still runs its alias, silently.
+# A copy outside .dockshim/bin still runs its alias, silently, and fails the same way without it.
 mkdir old
 cp .dockshim/bin/php old/php
 cp .dockshim/bin/node old/node
@@ -17,8 +18,8 @@ exec old/php
 stdout '^target tools$'
 ! stderr .
 ! exec old/node
-stderr 'old/node is a stale shim outside '$WORK'/.dockshim/bin, remove it manually'
-exists old/node
+stderr '^dockshim: alias "node" is not defined in '$WORK'/.dockshim.yaml$'
+! stderr warning
 
 -- .dockshim.yaml --
 aliases:

@@ -45,6 +45,8 @@ The scripts are generated: don't edit them, change the config and run `install` 
 
 `.dockshim/` only holds generated files: `install` writes a `.dockshim/.gitignore` that ignores it all. `.dockshim/bin` belongs to dockshim: `install` makes it contain exactly one script per alias, and removes anything else.
 
+When a shim runs from a terminal and `.dockshim/bin` differs from the config, dockshim warns and suggests `dockshim install`. IDEs and scripts get no warning.
+
 ## Environment forwarding
 
 Every host variable is forwarded by name (`--env NAME`), so values don't appear in `ps`. These are never forwarded, because their values describe the host:

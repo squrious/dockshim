@@ -5,6 +5,7 @@ package shim
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -27,42 +28,67 @@ func shellQuote(s string) string {
 	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
 }
 
+// Status is how dir differs from one entry point per alias, by entry name.
+type Status struct {
+	Missing  []string
+	Outdated []string // differ from what Install writes
+	Stale    []string // not an entry point of any alias
+}
+
+// UpToDate reports whether Install has nothing to do.
+func (s Status) UpToDate() bool {
+	return len(s.Missing)+len(s.Outdated)+len(s.Stale) == 0
+}
+
+// Check compares dir with the entry points of aliases. A missing dir has every alias missing.
+func Check(dir string, aliases []string) (Status, error) {
+	var st Status
+	entries, err := os.ReadDir(dir)
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return st, err
+	}
+	for _, e := range entries {
+		if !slices.Contains(aliases, e.Name()) {
+			st.Stale = append(st.Stale, e.Name())
+		}
+	}
+	for _, alias := range aliases {
+		p := filepath.Join(dir, alias)
+		if _, err := os.Lstat(p); errors.Is(err, os.ErrNotExist) {
+			st.Missing = append(st.Missing, alias)
+		} else if !upToDate(p, script(alias)) {
+			st.Outdated = append(st.Outdated, alias)
+		}
+	}
+	return st, nil
+}
+
 // Result reports what Install changed, by entry name.
 type Result struct {
 	Created []string
 	Removed []string
 }
 
-// Install makes dir contain exactly one entry point per alias: missing or changed ones are
-// written, anything else is removed. Removal is never recursive: a non-empty directory is an error.
+// Install makes dir contain exactly one entry point per alias: missing or outdated ones are
+// written, stale entries removed. Removal is never recursive: a non-empty directory is an error.
 // On error, the Result still lists what was done before it.
 func Install(dir string, aliases []string) (Result, error) {
 	var res Result
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return res, err
 	}
-
-	entries, err := os.ReadDir(dir)
+	st, err := Check(dir, aliases)
 	if err != nil {
 		return res, err
 	}
-	for _, e := range entries {
-		if slices.Contains(aliases, e.Name()) {
-			continue
-		}
-		if err := os.Remove(filepath.Join(dir, e.Name())); err != nil {
+	for _, name := range st.Stale {
+		if err := os.Remove(filepath.Join(dir, name)); err != nil {
 			return res, err
 		}
-		res.Removed = append(res.Removed, e.Name())
+		res.Removed = append(res.Removed, name)
 	}
-
-	for _, alias := range aliases {
-		p := filepath.Join(dir, alias)
-		want := script(alias)
-		if upToDate(p, want) {
-			continue
-		}
-		if err := create(p, want); err != nil {
+	for _, alias := range slices.Sorted(slices.Values(slices.Concat(st.Missing, st.Outdated))) {
+		if err := create(filepath.Join(dir, alias), script(alias)); err != nil {
 			return res, fmt.Errorf("installing %s: %w", alias, err)
 		}
 		res.Created = append(res.Created, alias)

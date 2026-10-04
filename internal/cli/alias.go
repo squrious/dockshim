@@ -1,11 +1,14 @@
 package cli
 
 import (
-	"os"
+	"maps"
 	"path/filepath"
+	"slices"
+	"strings"
 
 	"github.com/squrious/dockshim/internal/config"
 	"github.com/squrious/dockshim/internal/execplan"
+	"github.com/squrious/dockshim/internal/shim"
 )
 
 const exitUnknownAlias = 127
@@ -23,10 +26,11 @@ func (e *Env) discover(cwd, shimPath string) (*config.Project, error) {
 	return config.Load(file, config.LookupEnviron(e.Environ))
 }
 
-func execAlias(e *Env, proj *config.Project, name, shimPath, cwd string, args []string) int {
+func execAlias(e *Env, proj *config.Project, name, cwd string, args []string) int {
 	alias, ok := proj.Aliases[name]
 	if !ok {
-		return unknownAlias(e, proj, name, shimPath)
+		e.errorf("alias %q is not defined in %s", name, proj.File)
+		return exitUnknownAlias
 	}
 	code, err := execplan.Run(execplan.Input{
 		Project: proj,
@@ -47,37 +51,21 @@ func execAlias(e *Env, proj *config.Project, name, shimPath, cwd string, args []
 	return code
 }
 
-func unknownAlias(e *Env, proj *config.Project, name, shimPath string) int {
-	e.errorf("alias %q is not defined in %s", name, proj.File)
-	if shimPath == "" {
-		return exitUnknownAlias
+// warnOutdatedShims tells a human when the shims differ from the config. Alias mode otherwise
+// prints only errors (ADR 11): IDEs and scripts read its output, and they have no terminal.
+func warnOutdatedShims(e *Env, proj *config.Project) {
+	st, err := shim.Check(proj.BinDir(), slices.Sorted(maps.Keys(proj.Aliases)))
+	if err != nil || st.UpToDate() {
+		return
 	}
-	// Only shims in this project's bin directory are candidates for removal.
-	if !sameDir(filepath.Dir(shimPath), proj.BinDir()) {
-		e.errorf("%s is a stale shim outside %s, remove it manually", shimPath, proj.BinDir())
-		return exitUnknownAlias
-	}
-	if !e.Interactive {
-		e.errorf("%s is a stale shim, run `dockshim install` to remove it", shimPath)
-		return exitUnknownAlias
-	}
-	remove, err := e.Prompter.Confirm("Remove stale shim " + shimPath + "?")
-	if err != nil {
-		e.errorf("%v", err)
-		return exitUnknownAlias
-	}
-	if remove {
-		if err := os.Remove(shimPath); err != nil {
-			e.errorf("%v", err)
-		} else {
-			e.errorf("removed %s", shimPath)
+	var parts []string
+	for _, g := range []struct {
+		label string
+		names []string
+	}{{"missing", st.Missing}, {"outdated", st.Outdated}, {"stale", st.Stale}} {
+		if len(g.names) > 0 {
+			parts = append(parts, g.label+": "+strings.Join(g.names, ", "))
 		}
 	}
-	return exitUnknownAlias
-}
-
-func sameDir(a, b string) bool {
-	fa, errA := os.Stat(a)
-	fb, errB := os.Stat(b)
-	return errA == nil && errB == nil && os.SameFile(fa, fb)
+	e.errorf("warning: shims are out of date (%s), run `%s install`", strings.Join(parts, "; "), config.ToolName)
 }
