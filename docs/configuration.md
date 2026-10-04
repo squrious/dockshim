@@ -41,7 +41,9 @@ In an alias, scalars override `defaults`, lists are appended and `vars` are merg
 
 `dockshim install` creates one `/bin/sh` script per alias in `.dockshim/bin`. It runs `dockshim run --shim`, finding `dockshim` through `PATH`, so upgrading or moving the binary needs no reinstall. `dockshim` must therefore be in the `PATH` of whatever runs the shims, IDEs included.
 
-The scripts are generated: don't edit them, change the config and run `install` again. `.dockshim/` only holds generated files: `install` writes a `.dockshim/.gitignore` that ignores it all.
+The scripts are generated: don't edit them, change the config and run `install` again.
+
+`.dockshim/` only holds generated files: `install` writes a `.dockshim/.gitignore` that ignores it all. `.dockshim/bin` belongs to dockshim: `install` makes it contain exactly one script per alias, and removes anything else.
 
 ## Environment forwarding
 

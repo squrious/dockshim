@@ -1,4 +1,4 @@
-# install creates shims in .dockshim/bin, removes stale ones and leaves foreign files alone.
+# install makes .dockshim/bin hold exactly one shim per alias.
 exec dockshim install
 stdout '^created: composer, php$'
 stdout '^'$WORK'/.dockshim/bin is not in PATH: add it to run the aliases by name.$'
@@ -22,15 +22,26 @@ stdout '^created: node$'
 stdout '^removed: composer$'
 ! exists .dockshim/bin/composer
 
-# A file that is not a shim is never replaced.
-rm .dockshim/bin/node
+# Anything else in .dockshim/bin is replaced or removed.
 cp config2.yaml .dockshim/bin/node
+cp config2.yaml .dockshim/bin/notes
 exec dockshim install
-stderr 'skipped, not a dockshim shim: node'
+stdout '^created: node$'
+stdout '^removed: notes$'
+! exists .dockshim/bin/notes
 
 env PATH=$WORK/.dockshim/bin${:}$PATH
 exec dockshim install
 ! stdout 'is not in PATH'
+
+# install never manages a directory through a symlink.
+mkdir $WORK/elsewhere
+cp config2.yaml $WORK/elsewhere/keep
+rm .dockshim/bin
+symlink .dockshim/bin -> $WORK/elsewhere
+! exec dockshim install
+stderr '.dockshim/bin must be a directory: dockshim owns it'
+exists $WORK/elsewhere/keep
 
 -- .dockshim.yaml --
 aliases:

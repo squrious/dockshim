@@ -71,15 +71,17 @@ func newRoot(e *Env) *cobra.Command {
 				if err != nil {
 					return err
 				}
+				for _, dir := range []string{config.DirName, config.RelBinDir} {
+					if err := ownedDir(filepath.Join(proj.Root, dir)); err != nil {
+						return err
+					}
+				}
 				if err := ignoreDir(filepath.Join(proj.Root, config.DirName)); err != nil {
 					return err
 				}
-				res, err := shim.Install(proj.BinDir(), version(), slices.Sorted(maps.Keys(proj.Aliases)))
+				res, err := shim.Install(proj.BinDir(), slices.Sorted(maps.Keys(proj.Aliases)))
 				printList(cmd, "created", res.Created)
 				printList(cmd, "removed", res.Removed)
-				if len(res.Skipped) > 0 {
-					e.errorf("skipped, not a dockshim shim: %s", strings.Join(res.Skipped, ", "))
-				}
 				if err != nil {
 					return err
 				}
@@ -194,6 +196,21 @@ func printList(cmd *cobra.Command, label string, items []string) {
 	if len(items) > 0 {
 		cmd.Printf("%s: %s\n", label, strings.Join(items, ", "))
 	}
+}
+
+// ownedDir fails when p exists but is not a real directory. install removes whatever it doesn't
+// expect in the directories it owns: through a symlink, that would be someone else's files.
+func ownedDir(p string) error {
+	fi, err := os.Lstat(p)
+	switch {
+	case errors.Is(err, os.ErrNotExist):
+		return nil
+	case err != nil:
+		return err
+	case !fi.IsDir():
+		return fmt.Errorf("%s must be a directory: %s owns it", p, config.ToolName)
+	}
+	return nil
 }
 
 // ignoreDir creates dir with a .gitignore ignoring everything in it, itself included.

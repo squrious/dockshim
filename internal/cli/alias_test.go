@@ -26,7 +26,7 @@ func staleSetup(t *testing.T) (shimPath string, e *Env, stderr *bytes.Buffer) {
 	root := t.TempDir()
 	must(t, os.WriteFile(filepath.Join(root, ".dockshim.yaml"), []byte("aliases: {php: {service: tools}}\n"), 0o644))
 	bin := filepath.Join(root, ".dockshim", "bin")
-	if _, err := shim.Install(bin, "dev", []string{"php", "gone"}); err != nil {
+	if _, err := shim.Install(bin, []string{"php", "gone"}); err != nil {
 		t.Fatal(err)
 	}
 	stderr = &bytes.Buffer{}
@@ -76,21 +76,6 @@ func TestStaleShim(t *testing.T) {
 			t.Fatal("shim should be kept")
 		}
 		if !strings.Contains(stderr.String(), "stale shim, run `dockshim install`") {
-			t.Fatalf("stderr = %s", stderr)
-		}
-	})
-
-	t.Run("a script that is not a shim is never removed", func(t *testing.T) {
-		p, e, stderr := staleSetup(t)
-		must(t, os.WriteFile(p, []byte("#!/bin/sh\n"), 0o755))
-		e.Interactive, e.Prompter = true, answer(true)
-		if code := runShim(p, e); code != exitUnknownAlias {
-			t.Fatalf("code = %d", code)
-		}
-		if _, err := os.Lstat(p); err != nil {
-			t.Fatal("foreign script should be kept")
-		}
-		if strings.Contains(stderr.String(), "stale shim") {
 			t.Fatalf("stderr = %s", stderr)
 		}
 	})

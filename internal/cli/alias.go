@@ -6,7 +6,6 @@ import (
 
 	"github.com/squrious/dockshim/internal/config"
 	"github.com/squrious/dockshim/internal/execplan"
-	"github.com/squrious/dockshim/internal/shim"
 )
 
 const exitUnknownAlias = 127
@@ -50,8 +49,7 @@ func execAlias(e *Env, proj *config.Project, name, shimPath, cwd string, args []
 
 func unknownAlias(e *Env, proj *config.Project, name, shimPath string) int {
 	e.errorf("alias %q is not defined in %s", name, proj.File)
-	// --shim is free input: only our own scripts are reported as stale.
-	if shimPath == "" || !shim.IsShim(shimPath) {
+	if shimPath == "" {
 		return exitUnknownAlias
 	}
 	// Only shims in this project's bin directory are candidates for removal.
