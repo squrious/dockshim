@@ -24,7 +24,6 @@ type Plan struct {
 	// PreRun steps run before the command; PostRun steps always run after it, in reverse order.
 	PreRun  []Step
 	PostRun []Step
-	Warn    WarnFunc
 }
 
 // WarnFunc reports a problem that doesn't stop the command. A nil WarnFunc discards it.
@@ -90,7 +89,7 @@ func Build(in Input) (*Plan, error) {
 	if in.Target == nil {
 		in.Target = NewTarget(in.Project, in.Alias.Service, in.Runner)
 	}
-	p := &Plan{Target: in.Target, Runner: in.Runner, Warn: in.Warn}
+	p := &Plan{Target: in.Target, Runner: in.Runner}
 	workdir, _ := in.Alias.PathMapping.ToContainer(in.Cwd)
 
 	args := in.Args
@@ -142,13 +141,12 @@ type Stdio struct {
 }
 
 // Execute runs PreRun, the command and PostRun on a running target, and returns the command exit code.
-// The command is never run again. PostRun failures are only warnings.
+// The command is never run again. PostRun failures are ignored: the command already ran, and what
+// they leave behind is harmless.
 func Execute(p *Plan, stdio Stdio) (int, error) {
 	defer func() {
 		for _, step := range slices.Backward(p.PostRun) {
-			if err := step(); err != nil {
-				p.Warn.warn("%v", err)
-			}
+			_ = step()
 		}
 	}()
 	if err := runSteps(p.PreRun); err != nil {

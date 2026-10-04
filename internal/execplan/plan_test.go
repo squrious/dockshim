@@ -3,7 +3,6 @@ package execplan
 import (
 	"bytes"
 	"errors"
-	"fmt"
 	"io"
 	"slices"
 	"strings"
@@ -148,19 +147,22 @@ func TestExecute(t *testing.T) {
 	}
 }
 
-func TestExecutePostRunFailureWarns(t *testing.T) {
-	var log, warnings []string
+func TestExecuteIgnoresPostRunFailure(t *testing.T) {
+	var log []string
 	p := &Plan{
-		Target:  &fakeTarget{running: []bool{true}, log: &log},
-		Runner:  &fakeRunner{codes: []int{0}, log: &log},
-		PostRun: []Step{func() error { return errors.New("cleanup failed") }},
-		Warn:    func(format string, args ...any) { warnings = append(warnings, fmt.Sprintf(format, args...)) },
+		Target: &fakeTarget{running: []bool{true}, log: &log},
+		Runner: &fakeRunner{codes: []int{0}, log: &log},
+		PostRun: []Step{
+			func() error { log = append(log, "post1"); return nil },
+			func() error { return errors.New("cleanup failed") },
+		},
 	}
-	if code, err := Execute(p, Stdio{}); code != 0 || err != nil {
+	var stderr bytes.Buffer
+	if code, err := Execute(p, Stdio{Err: &stderr}); code != 0 || err != nil {
 		t.Fatalf("code=%d err=%v", code, err)
 	}
-	if !slices.Equal(warnings, []string{"cleanup failed"}) {
-		t.Fatalf("warnings = %q", warnings)
+	if got := strings.Join(log, " "); !strings.HasSuffix(got, "post1") || stderr.Len() != 0 {
+		t.Fatalf("log = %q, stderr = %q", got, stderr.String())
 	}
 }
 
