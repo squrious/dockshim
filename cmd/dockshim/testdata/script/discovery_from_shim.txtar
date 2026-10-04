@@ -12,6 +12,14 @@ stdout '^target tools$'
 ! exec dockshim config
 stderr 'no dockshim config found'
 
+# A shim outside any project never falls back to the current directory: run does that.
+cp $WORK/project/.dockshim/bin/php $WORK/elsewhere/php
+cd $WORK/project
+! exec $WORK/elsewhere/php
+stderr 'no dockshim config found'
+exec dockshim run php
+stdout '^target tools$'
+
 -- project/.dockshim.yaml --
 aliases:
   php:

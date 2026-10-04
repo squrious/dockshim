@@ -23,7 +23,7 @@ const (
 // Candidates are the config file names, in lookup order.
 var Candidates = []string{FileName, ".dockshim.yml"}
 
-// ErrNotFound is returned by Discover when no start directory has a config file above it.
+// ErrNotFound is returned by Discover when there is no config file above the start directory.
 var ErrNotFound = errors.New("no dockshim config found (looked for " + strings.Join(Candidates, ", ") + ")")
 
 // findIn returns the config file of dir, or "" if there is none.
@@ -50,24 +50,21 @@ func findIn(dir string) (string, error) {
 	}
 }
 
-// Discover walks up from each start directory in turn and returns the first config file found.
-func Discover(starts ...string) (string, error) {
-	for _, start := range starts {
-		dir, err := filepath.Abs(start)
-		if err != nil {
-			return "", err
-		}
-		for {
-			file, err := findIn(dir)
-			if err != nil || file != "" {
-				return file, err
-			}
-			parent := filepath.Dir(dir)
-			if parent == dir {
-				break
-			}
-			dir = parent
-		}
+// Discover walks up from start and returns the first config file found.
+func Discover(start string) (string, error) {
+	dir, err := filepath.Abs(start)
+	if err != nil {
+		return "", err
 	}
-	return "", ErrNotFound
+	for {
+		file, err := findIn(dir)
+		if err != nil || file != "" {
+			return file, err
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			return "", ErrNotFound
+		}
+		dir = parent
+	}
 }

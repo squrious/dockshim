@@ -13,13 +13,14 @@ import (
 
 const exitUnknownAlias = 127
 
-// discover loads the config, looking next to the shim first: IDEs may run it from any directory.
+// discover loads the config of the shim's project, or of cwd without a shim. A shim never falls
+// back to cwd: IDEs may run it from any directory, and `dockshim run` already follows cwd.
 func (e *Env) discover(cwd, shimPath string) (*config.Project, error) {
-	var starts []string
+	start := cwd
 	if shimPath != "" {
-		starts = append(starts, filepath.Dir(shimPath))
+		start = filepath.Dir(shimPath)
 	}
-	file, err := config.Discover(append(starts, cwd)...)
+	file, err := config.Discover(start)
 	if err != nil {
 		return nil, err
 	}

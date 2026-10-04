@@ -64,15 +64,6 @@ func TestDiscover(t *testing.T) {
 		}
 	})
 
-	t.Run("falls back to next start", func(t *testing.T) {
-		empty, root := t.TempDir(), t.TempDir()
-		write(t, filepath.Join(root, ".dockshim.yaml"), minimal)
-		file, err := Discover(empty, root)
-		if err != nil || filepath.Dir(file) != root {
-			t.Fatalf("got %q, %v", file, err)
-		}
-	})
-
 	t.Run("unreadable is not absent", func(t *testing.T) {
 		if os.Getuid() == 0 {
 			t.Skip("root reads everything")
