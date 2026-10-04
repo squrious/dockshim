@@ -113,32 +113,22 @@ func TestExecute(t *testing.T) {
 	boom := errors.New("boom")
 	tests := []struct {
 		name    string
-		running []bool
 		code    int
 		preErr  error
 		want    int
 		wantErr bool
 		log     string
-		stderr  string
 	}{
-		{name: "success", running: []bool{true}, log: "pre exec post"},
-		{name: "exit code kept", running: []bool{true}, code: 42, want: 42, log: "pre exec running? post"},
-		{name: "never retried", running: []bool{false}, code: 1, want: 1, log: "pre exec running? post",
-			stderr: "dockshim: warning: fake is not running anymore: exit status 1 may come from the container stopping, not from the command\n"},
-		{name: "pre-run failure", running: []bool{true}, preErr: boom, want: 1, wantErr: true, log: "pre post"},
-		{name: "killed while stopping", running: []bool{true, true, false}, code: 137, want: 137, log: "pre exec running? running? running? post",
-			stderr: "dockshim: warning: fake is not running anymore: exit status 137 may come from the container stopping, not from the command\n"},
-		{name: "killed, target up", running: []bool{true}, code: 143, want: 143, log: "pre exec running? running? running? post"},
+		{name: "success", log: "pre exec post"},
+		{name: "exit code kept", code: 42, want: 42, log: "pre exec post"},
+		{name: "pre-run failure", preErr: boom, want: 1, wantErr: true, log: "pre post"},
 	}
-	tries, delay := settleTries, settleDelay
-	settleTries, settleDelay = 3, 0
-	t.Cleanup(func() { settleTries, settleDelay = tries, delay })
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var log []string
 			var stderr bytes.Buffer
 			p := &Plan{
-				Target:  &fakeTarget{running: tt.running, log: &log},
+				Target:  &fakeTarget{running: []bool{true}, log: &log},
 				Runner:  &fakeRunner{codes: []int{tt.code}, log: &log},
 				PreRun:  []Step{func() error { log = append(log, "pre"); return tt.preErr }},
 				PostRun: []Step{func() error { log = append(log, "post"); return nil }},
@@ -150,7 +140,7 @@ func TestExecute(t *testing.T) {
 			if got := strings.Join(log, " "); got != tt.log {
 				t.Fatalf("log = %q, want %q", got, tt.log)
 			}
-			if stderr.String() != tt.stderr {
+			if stderr.Len() != 0 {
 				t.Fatalf("stderr = %q", stderr.String())
 			}
 		})

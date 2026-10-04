@@ -6,8 +6,6 @@ import (
 	"io"
 	"maps"
 	"slices"
-	"syscall"
-	"time"
 
 	"github.com/squrious/dockshim/internal/config"
 	"github.com/squrious/dockshim/internal/docker"
@@ -135,8 +133,7 @@ type Stdio struct {
 }
 
 // Execute runs PreRun, the command and PostRun on a running target, and returns the command exit code.
-// A command failing while the target is down gets a warning, as its exit code may come from
-// the container stopping. It is never run again. PostRun failures are only warnings.
+// The command is never run again. PostRun failures are only warnings.
 func Execute(p *Plan, stdio Stdio) (int, error) {
 	defer func() {
 		for _, step := range slices.Backward(p.PostRun) {
@@ -148,35 +145,7 @@ func Execute(p *Plan, stdio Stdio) (int, error) {
 	if err := runSteps(p.PreRun); err != nil {
 		return 1, err
 	}
-	code, err := p.Runner.Run(docker.Cmd{Dir: p.Target.Dir(), Args: p.Args, Env: p.Env, Stdin: stdio.In, Stdout: stdio.Out, Stderr: stdio.Err})
-	if err == nil && code != 0 && stopped(p.Target, code) {
-		warnf(stdio.Err, "%s is not running anymore: exit status %d may come from the container stopping, not from the command", p.Target, code)
-	}
-	return code, err
-}
-
-// Stopping a container kills the commands exec started (137, or 143 when they exit on SIGTERM)
-// a moment before docker reports it stopped. For those codes, the state gets time to settle.
-var (
-	settleTries = 10
-	settleDelay = 100 * time.Millisecond
-)
-
-// stopped reports whether the target is down after the command failed with code.
-func stopped(t docker.Target, code int) bool {
-	tries := 1
-	if code == 128+int(syscall.SIGKILL) || code == 128+int(syscall.SIGTERM) {
-		tries = settleTries
-	}
-	for i := range tries {
-		if i > 0 {
-			time.Sleep(settleDelay)
-		}
-		if !t.IsRunning() {
-			return true
-		}
-	}
-	return false
+	return p.Runner.Run(docker.Cmd{Dir: p.Target.Dir(), Args: p.Args, Env: p.Env, Stdin: stdio.In, Stdout: stdio.Out, Stderr: stdio.Err})
 }
 
 func runSteps(steps []Step) error {
