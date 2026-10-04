@@ -10,7 +10,7 @@ import (
 	"strings"
 )
 
-// ExecOptions are the docker exec flags shared by every target.
+// ExecOptions are the docker exec flags of a command.
 type ExecOptions struct {
 	TTY     bool
 	User    string
@@ -45,20 +45,6 @@ type Mount struct {
 
 // MountBind is the Mount.Type of a bind mount.
 const MountBind = "bind"
-
-func commonExecFlags(opts ExecOptions) []string {
-	var args []string
-	for _, name := range opts.Env {
-		args = append(args, "--env", name)
-	}
-	if opts.User != "" {
-		args = append(args, "--user", opts.User)
-	}
-	if opts.Workdir != "" {
-		args = append(args, "--workdir", opts.Workdir)
-	}
-	return args
-}
 
 // output runs docker and returns its trimmed stdout. A non-zero exit is an error.
 func output(r Runner, dir string, args ...string) (string, error) {
@@ -144,7 +130,15 @@ func (c *Compose) ExecArgs(opts ExecOptions, argv []string) []string {
 	if !opts.TTY {
 		args = append(args, "-T")
 	}
-	args = append(args, commonExecFlags(opts)...)
+	for _, name := range opts.Env {
+		args = append(args, "--env", name)
+	}
+	if opts.User != "" {
+		args = append(args, "--user", opts.User)
+	}
+	if opts.Workdir != "" {
+		args = append(args, "--workdir", opts.Workdir)
+	}
 	args = append(args, c.Service)
 	return append(args, argv...)
 }
