@@ -185,7 +185,8 @@ func commonChecks(t *testing.T, root string, stop func()) {
 			if state == "stopped" {
 				stop()
 			}
-			if out := config(); !strings.Contains(out, ". → /app") {
+			// Shims are installed and the service exists: nothing to warn about.
+			if out := config(); !strings.Contains(out, ". → /app") || strings.Contains(out, "warning") {
 				t.Fatalf("%s: config = %s", state, out)
 			}
 		}

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"maps"
 	"os"
 	"slices"
 	"strings"
@@ -157,6 +158,20 @@ func (c *Compose) Mounts() ([]Mount, error) {
 		return nil, fmt.Errorf("reading the mounts of %s: %w", c, err)
 	}
 	return mounts, nil
+}
+
+// Services lists the active services of the compose project: those without a profile, or with a
+// profile enabled by COMPOSE_PROFILES.
+func (c *Compose) Services() ([]string, error) {
+	out, err := output(c.Runner, c.ProjectDir, append(c.base(), "config", "--format", "json")...)
+	if err != nil {
+		return nil, err
+	}
+	var cfg struct{ Services map[string]json.RawMessage }
+	if err := json.Unmarshal([]byte(out), &cfg); err != nil {
+		return nil, fmt.Errorf("reading the compose config: %w", err)
+	}
+	return slices.Sorted(maps.Keys(cfg.Services)), nil
 }
 
 // ConfiguredMounts lists the mounts the compose config declares for the service, as up would

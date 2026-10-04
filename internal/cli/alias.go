@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"fmt"
 	"maps"
 	"path/filepath"
 	"slices"
@@ -27,10 +28,15 @@ func (e *Env) discover(cwd, shimPath string) (*config.Project, error) {
 	return config.Load(file, config.LookupEnviron(e.Environ))
 }
 
-func execAlias(e *Env, proj *config.Project, name, cwd string, args []string) int {
+// installed is true when the alias runs through a shim of .dockshim/bin.
+func execAlias(e *Env, proj *config.Project, name, cwd string, args []string, installed bool) int {
 	alias, ok := proj.Aliases[name]
 	if !ok {
-		e.errorf("alias %q is not defined in %s", name, proj.File)
+		hint := ""
+		if installed {
+			hint = fmt.Sprintf(": run `%s install` to remove its shim", config.ToolName)
+		}
+		e.errorf("alias %q is not defined in %s%s", name, proj.File, hint)
 		return exitUnknownAlias
 	}
 	code, err := execplan.Run(execplan.Input{
@@ -52,8 +58,7 @@ func execAlias(e *Env, proj *config.Project, name, cwd string, args []string) in
 	return code
 }
 
-// warnOutdatedShims tells a human when the shims differ from the config. Alias mode otherwise
-// prints only errors (ADR 11): IDEs and scripts read its output, and they have no terminal.
+// warnOutdatedShims tells when the shims differ from the config.
 func warnOutdatedShims(e *Env, proj *config.Project) {
 	st, err := shim.Check(proj.BinDir(), slices.Sorted(maps.Keys(proj.Aliases)))
 	if err != nil || st.UpToDate() {

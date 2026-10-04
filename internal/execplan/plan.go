@@ -57,7 +57,7 @@ type Input struct {
 // then builds the plan and executes it.
 func Run(in Input, stdio Stdio) (int, error) {
 	if in.Target == nil {
-		in.Target = NewTarget(in.Project, in.Alias, in.Runner)
+		in.Target = NewTarget(in.Project, in.Alias.Service, in.Runner)
 	}
 	if !in.Target.IsRunning() {
 		// The exec environment, so that compose interpolates the project as it will for the exec.
@@ -88,7 +88,7 @@ func Run(in Input, stdio Stdio) (int, error) {
 // It uses the alias path mappings as they are: Run infers them first when needed.
 func Build(in Input) (*Plan, error) {
 	if in.Target == nil {
-		in.Target = NewTarget(in.Project, in.Alias, in.Runner)
+		in.Target = NewTarget(in.Project, in.Alias.Service, in.Runner)
 	}
 	p := &Plan{Target: in.Target, Runner: in.Runner, Warn: in.Warn}
 	workdir, _ := in.Alias.PathMapping.ToContainer(in.Cwd)
@@ -126,9 +126,9 @@ func environment(in Input) (env, names []string) {
 	return env, names
 }
 
-// NewTarget returns the compose service an alias runs in.
-func NewTarget(p *config.Project, a *config.ResolvedAlias, r docker.Runner) *docker.Compose {
-	c := &docker.Compose{Runner: r, ProjectDir: p.Root, Service: a.Service}
+// NewTarget returns a service of the project's compose project.
+func NewTarget(p *config.Project, service string, r docker.Runner) *docker.Compose {
+	c := &docker.Compose{Runner: r, ProjectDir: p.Root, Service: service}
 	if p.Compose != nil {
 		c.Files, c.ProjectName = p.Compose.Files, p.Compose.ProjectName
 	}

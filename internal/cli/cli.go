@@ -21,8 +21,6 @@ type Env struct {
 	Environ        []string
 	Getwd          func() (string, error)
 	Runner         docker.Runner
-	// Interactive is true when a human reads dockshim's warnings (stdin and stderr are terminals).
-	Interactive bool
 	// TTY is true when the container command should get a pseudo-terminal (stdin and stdout are terminals).
 	TTY bool
 	// OutStyle and ErrStyle color dockshim's own output on Stdout and Stderr.
@@ -35,16 +33,15 @@ func SystemEnv() *Env {
 	// https://no-color.org
 	color := os.Getenv("NO_COLOR") == ""
 	return &Env{
-		Stdin:       os.Stdin,
-		Stdout:      os.Stdout,
-		Stderr:      os.Stderr,
-		Environ:     os.Environ(),
-		Getwd:       os.Getwd,
-		Runner:      docker.ExecRunner{},
-		Interactive: stdin && stderr,
-		TTY:         stdin && stdout,
-		OutStyle:    style.Style{Enabled: color && stdout},
-		ErrStyle:    style.Style{Enabled: color && stderr},
+		Stdin:    os.Stdin,
+		Stdout:   os.Stdout,
+		Stderr:   os.Stderr,
+		Environ:  os.Environ(),
+		Getwd:    os.Getwd,
+		Runner:   docker.ExecRunner{},
+		TTY:      stdin && stdout,
+		OutStyle: style.Style{Enabled: color && stdout},
+		ErrStyle: style.Style{Enabled: color && stderr},
 	}
 }
 

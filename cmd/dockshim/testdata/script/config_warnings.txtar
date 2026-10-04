@@ -1,0 +1,23 @@
+# config warns, after the summary, when shims differ from the config. Without compose config, it
+# can't tell which services exist, and says nothing about them.
+exec dockshim config
+stdout '^php$'
+cmp stderr want-missing.txt
+
+# Aliases on a service the compose project lacks are reported.
+exec dockshim install
+exec sh -c 'printf "%s" "{\"services\":{\"tools\":{}}}" > $FAKE_DOCKER_STATE/compose-config'
+rm $FAKE_DOCKER_STATE/calls
+exec dockshim config
+cmp stderr want-unknown.txt
+exec grep -c '^compose config --format json$' $FAKE_DOCKER_STATE/calls
+stdout '^1$'
+
+-- .dockshim.yaml --
+aliases:
+  php: {service: tools}
+  node: {service: nodejs}
+-- want-missing.txt --
+dockshim: warning: shims are out of date (missing: node, php), run `dockshim install`
+-- want-unknown.txt --
+dockshim: warning: alias "node": service "nodejs" is not in the compose project

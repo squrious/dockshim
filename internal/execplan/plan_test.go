@@ -58,7 +58,7 @@ func TestBuild(t *testing.T) {
 
 func TestNewTarget(t *testing.T) {
 	proj := &config.Project{Root: "/proj", Compose: &config.Compose{Files: []string{"/proj/c.yaml"}, ProjectName: "p"}}
-	if c := NewTarget(proj, alias(), nil); c.Service != "tools" || c.ProjectName != "p" || c.ProjectDir != "/proj" {
+	if c := NewTarget(proj, alias().Service, nil); c.Service != "tools" || c.ProjectName != "p" || c.ProjectDir != "/proj" {
 		t.Fatalf("compose target = %+v", c)
 	}
 }

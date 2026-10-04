@@ -14,6 +14,7 @@ import (
 
 	"github.com/squrious/dockshim/internal/config"
 	"github.com/squrious/dockshim/internal/execplan"
+	"github.com/squrious/dockshim/internal/hostpath"
 	"github.com/squrious/dockshim/internal/pathmap"
 	"github.com/squrious/dockshim/internal/shim"
 )
@@ -123,13 +124,20 @@ func newConfigCmd(e *Env) *cobra.Command {
 				return err
 			}
 			cache := map[string]*inference{}
-			return printSummary(cmd.OutOrStdout(), e.OutStyle, proj, func(a *config.ResolvedAlias) *inference {
+			err = printSummary(cmd.OutOrStdout(), e.OutStyle, proj, func(a *config.ResolvedAlias) *inference {
 				if inf, ok := cache[a.Service]; ok {
 					return inf
 				}
 				cache[a.Service] = inferMounts(e, proj, a)
 				return cache[a.Service]
 			})
+			if err != nil {
+				return err
+			}
+			// Last, so that they stay in sight below the summary.
+			warnUnknownServices(e, proj)
+			warnOutdatedShims(e, proj)
+			return nil
 		},
 	}
 }
@@ -147,7 +155,7 @@ func inferMounts(e *Env, proj *config.Project, a *config.ResolvedAlias) *inferen
 	if e.Runner == nil {
 		return nil
 	}
-	target := execplan.NewTarget(proj, a, e.Runner)
+	target := execplan.NewTarget(proj, a.Service, e.Runner)
 	running := target.IsRunning()
 	mount := target.ConfiguredMounts
 	if running {
@@ -159,6 +167,23 @@ func inferMounts(e *Env, proj *config.Project, a *config.ResolvedAlias) *inferen
 	}
 	m, outside := execplan.InferMappings(mounts, proj.Root)
 	return &inference{running: running, mappings: m, outside: outside}
+}
+
+// warnUnknownServices tells which aliases target a service the compose project lacks. It says
+// nothing when docker can't tell.
+func warnUnknownServices(e *Env, proj *config.Project) {
+	if e.Runner == nil {
+		return
+	}
+	services, err := execplan.NewTarget(proj, "", e.Runner).Services()
+	if err != nil {
+		return
+	}
+	for _, name := range slices.Sorted(maps.Keys(proj.Aliases)) {
+		if s := proj.Aliases[name].Service; !slices.Contains(services, s) {
+			e.warnf("alias %q: service %q is not in the compose project", name, s)
+		}
+	}
 }
 
 func newRunCmd(e *Env) *cobra.Command {
@@ -179,10 +204,9 @@ func newRunCmd(e *Env) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if shimPath != "" && e.Interactive {
-				warnOutdatedShims(e, proj)
-			}
-			if code := execAlias(e, proj, args[0], cwd, args[1:]); code != 0 {
+			// A shim of .dockshim/bin without its alias is one install would remove.
+			installed := shimPath != "" && hostpath.Real(filepath.Dir(shimPath)) == proj.BinDir()
+			if code := execAlias(e, proj, args[0], cwd, args[1:], installed); code != 0 {
 				return exitCodeError(code)
 			}
 			return nil

@@ -121,6 +121,22 @@ func TestComposeMounts(t *testing.T) {
 	}
 }
 
+func TestComposeServices(t *testing.T) {
+	r := &fakeRunner{}
+	c := &Compose{Runner: r, ProjectDir: "/proj", ProjectName: "p"}
+	services, err := c.Services()
+	if err != nil || !slices.Equal(services, []string{"tools"}) {
+		t.Fatalf("services=%v err=%v", services, err)
+	}
+	if got := r.calls[0]; got != (call{"/proj", "compose --project-name p config --format json", ""}) {
+		t.Fatalf("config call = %+v", got)
+	}
+	r.fail = 1
+	if _, err := c.Services(); err == nil {
+		t.Fatal("expected error when compose fails")
+	}
+}
+
 func TestComposeConfiguredMounts(t *testing.T) {
 	r := &fakeRunner{}
 	c := &Compose{Runner: r, ProjectDir: "/proj", ProjectName: "p", Service: "tools"}
