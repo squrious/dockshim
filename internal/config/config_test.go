@@ -101,12 +101,12 @@ func TestValidate(t *testing.T) {
 		want []string // substrings of problems, in order
 	}{
 		{"valid", `
-global: {user: "1000:1000", env: {deny: [A], deny_prefixes: [B_], allow: [C], vars: {D: 1}}}
+defaults: {user: "1000:1000", env: {deny: [A], deny_prefixes: [B_], allow: [C], vars: {D: 1}}}
 aliases:
   php: {service: tools, path_mapping: {.: /app, ./lib: /lib}, user: host}
   node: {service: node, user: www-data}
 `, nil},
-		{"no aliases", `global: {}`, nil},
+		{"no aliases", `defaults: {}`, nil},
 		{"service required", `aliases: {php: {}}`, []string{"aliases.php.service: is required"}},
 		{"bad names", `aliases: {dockshim: {service: a}, Dockshim: {service: a}, "a/b": {service: a}}`, []string{
 			`aliases.Dockshim: invalid alias name`,
@@ -125,20 +125,20 @@ aliases:
 			`aliases.php.path_mapping[lib]: container path "rel" must be absolute`,
 		}},
 		{"env and user", `
-global: {user: "a b", env: {deny: [1X], vars: {"B-C": x}}}
+defaults: {user: "a b", env: {deny: [1X], vars: {"B-C": x}}}
 aliases: {php: {service: a, env: {deny_prefixes: [""]}}}
 `, []string{
-			`global.user: invalid user "a b"`,
-			`global.env.deny[0]: invalid variable name "1X"`,
-			`global.env.vars: invalid variable name "B-C"`,
+			`defaults.user: invalid user "a b"`,
+			`defaults.env.deny[0]: invalid variable name "1X"`,
+			`defaults.env.vars: invalid variable name "B-C"`,
 			`aliases.php.env.deny_prefixes[0]: invalid variable name ""`,
 		}},
 		{"path translation", `
-global: {path_translation: {enabled: maybe, allow: [rel]}}
+defaults: {path_translation: {enabled: maybe, allow: [rel]}}
 aliases: {php: {service: a, path_translation: {enabled: "${X:-false}", allow: [/ok, 'C:\tmp']}}}
 `, []string{
-			`global.path_translation.enabled: invalid boolean "maybe"`,
-			`global.path_translation.allow[0]: host path "rel" must be absolute`,
+			`defaults.path_translation.enabled: invalid boolean "maybe"`,
+			`defaults.path_translation.allow[0]: host path "rel" must be absolute`,
 		}},
 	}
 	for _, tt := range tests {
@@ -177,7 +177,7 @@ func TestParseRejectsUnknownFields(t *testing.T) {
 }
 
 func TestScalarRejectsCollections(t *testing.T) {
-	if _, err := Parse([]byte("global: {user: [1]}"), noEnv); err == nil || !strings.Contains(err.Error(), "expected a scalar value") {
+	if _, err := Parse([]byte("defaults: {user: [1]}"), noEnv); err == nil || !strings.Contains(err.Error(), "expected a scalar value") {
 		t.Fatalf("got %v", err)
 	}
 }
@@ -187,12 +187,12 @@ func TestResolve(t *testing.T) {
 	file := filepath.Join(root, ".dockshim.yaml")
 	write(t, file, `
 compose: {files: [docker/compose.yaml], project_name: proj}
-global:
+defaults:
   user: 1000
   env:
     deny: [FOO]
     deny_prefixes: [MISE_]
-    vars: {SOME_VAR: global, ONLY_GLOBAL: true}
+    vars: {SOME_VAR: defaults, ONLY_DEFAULTS: true}
 aliases:
   php:
     service: tools
@@ -242,7 +242,7 @@ aliases:
 	if !slices.Equal(node.PathMapping, wantNodeMap) {
 		t.Errorf("node mapping = %v", node.PathMapping)
 	}
-	if php.Vars["SOME_VAR"] != "global" || node.Vars["SOME_VAR"] != "alias" || node.Vars["ONLY_GLOBAL"] != "true" || node.Vars["NODE_ENV"] != "dev" {
+	if php.Vars["SOME_VAR"] != "defaults" || node.Vars["SOME_VAR"] != "alias" || node.Vars["ONLY_DEFAULTS"] != "true" || node.Vars["NODE_ENV"] != "dev" {
 		t.Errorf("vars: php=%v node=%v", php.Vars, node.Vars)
 	}
 	wantDeny := append(slices.Clone(envfilter.DefaultDeny), "FOO", "BAZ")

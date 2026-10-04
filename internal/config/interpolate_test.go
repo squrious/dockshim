@@ -64,7 +64,7 @@ func TestLookupEnviron(t *testing.T) {
 func TestParseInterpolates(t *testing.T) {
 	lookup := env(map[string]string{"UID": "1000", "SVC": "tools", "TRICKY": "a: [b", "DIR": "src"})
 	f, err := Parse([]byte(`
-global:
+defaults:
   user: ${UID}
   env:
     deny: [$UID]
@@ -83,10 +83,10 @@ aliases:
 	}
 	php := f.Aliases["php"]
 	switch {
-	case f.Global.User != "1000", f.Global.Env.Deny[0] != "1000":
-		t.Errorf("global = %+v", f.Global)
-	case f.Global.Env.Vars["TRICKY"] != "a: [b", f.Global.Env.Vars["LITERAL"] != "$HOME", f.Global.Env.Vars["NUM"] != "42":
-		t.Errorf("vars = %v", f.Global.Env.Vars)
+	case f.Defaults.User != "1000", f.Defaults.Env.Deny[0] != "1000":
+		t.Errorf("defaults = %+v", f.Defaults)
+	case f.Defaults.Env.Vars["TRICKY"] != "a: [b", f.Defaults.Env.Vars["LITERAL"] != "$HOME", f.Defaults.Env.Vars["NUM"] != "42":
+		t.Errorf("vars = %v", f.Defaults.Env.Vars)
 	case php.Service != "tools", php.PathMapping["${DIR}"] != "/app/src":
 		t.Errorf("php = %+v", php)
 	}

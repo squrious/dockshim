@@ -2,7 +2,7 @@
 stderr 'invalid config:'
 stderr 'aliases.none.service: is required'
 stderr 'aliases.php.path_mapping\[\.\]: container path "app" must be absolute'
-stderr 'global.user: invalid user'
+stderr 'defaults.user: invalid user'
 
 cd $WORK/unknown
 ! exec dockshim validate
@@ -26,7 +26,7 @@ cd $WORK/ambiguous
 stderr 'unknown command "bogus"'
 
 -- .dockshim.yaml --
-global:
+defaults:
   user: "not valid"
 aliases:
   none: {}

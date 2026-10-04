@@ -33,7 +33,7 @@ Directories are never copied. dockshim warns when a path in an allowed directory
 A symlink counts where it points: a link in `/tmp` to a file elsewhere is not copied. To copy it, allow the directory it points into.
 
 ```yaml
-global:
+defaults:
   path_translation:
     enabled: true               # default
     allow: [/srv/fixtures]      # extra directories whose files may be copied

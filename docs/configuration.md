@@ -11,7 +11,7 @@ compose:                        # passed to every docker compose call (optional)
   files: [compose.yaml]         # relative to the project root
   project_name: my-project
 
-global:                         # defaults for every alias
+defaults:                       # inherited by every alias
   user: host                    # default: uid:gid of the caller. Or 1000, "1000:1000", www-data
   env:
     deny: [FOO]                 # appended to the built-in denylist
@@ -29,13 +29,13 @@ aliases:
       .: /app
   node:
     service: node
-    user: 1001                  # overrides global
+    user: 1001                  # overrides defaults
     env:
-      vars: {NODE_ENV: dev}     # merged over global vars
+      vars: {NODE_ENV: dev}     # merged over the defaults' vars
       deny: [BAZ]               # appended
 ```
 
-In an alias, scalars override `global`, lists are appended and `vars` are merged.
+In an alias, scalars override `defaults`, lists are appended and `vars` are merged.
 
 ## Entry points
 
@@ -49,14 +49,14 @@ Every host variable is forwarded by name (`--env NAME`), so values don't appear 
 - names: `PATH HOME PWD OLDPWD TMPDIR TMP TEMP USER LOGNAME HOSTNAME SHELL SHLVL _ LS_COLORS`
 - prefixes: `COMPOSE_ DOCKER_ SSH_ XDG_ WSL BASH_FUNC_`
 
-The built-in rules, then `global`, then the alias add to these lists. `allow` wins over any deny. `vars` override host values and bypass the deny rules.
+The built-in rules, then `defaults`, then the alias add to these lists. `allow` wins over any deny. `vars` override host values and bypass the deny rules.
 
 ## Interpolation
 
 Values (not keys) are interpolated from the environment, with Compose's syntax:
 
 ```yaml
-global:
+defaults:
   user: ${APP_UID:-1000}        # default when unset or empty (${VAR-x}: when unset only)
 aliases:
   php:

@@ -25,7 +25,7 @@ env SVC=
 stderr 'aliases.php.service: is required'
 
 -- .dockshim.yaml --
-global:
+defaults:
   user: ${APP_UID}:${APP_GID:-$APP_UID}
 aliases:
   php:

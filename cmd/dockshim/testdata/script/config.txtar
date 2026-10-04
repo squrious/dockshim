@@ -10,13 +10,13 @@ stderr 'unknown command "php" for "dockshim config"'
 compose:
   files: [docker/compose.yaml]
   project_name: demo
-global:
+defaults:
   user: 1000
   path_translation:
     allow: [/data]
   env:
     deny: [FOO]
-    vars: {A: global}
+    vars: {A: defaults}
 aliases:
   php:
     service: tools

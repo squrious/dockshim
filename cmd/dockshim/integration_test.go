@@ -29,9 +29,9 @@ func docker(t *testing.T, dir string, args ...string) string {
 	return strings.TrimSpace(string(out))
 }
 
-// baseConfig is the global section shared by the suite.
+// baseConfig is the defaults section shared by the suite.
 const baseConfig = `
-global:
+defaults:
   env:
     deny: [HIDDEN]
     vars: {FROM_CONFIG: configured}

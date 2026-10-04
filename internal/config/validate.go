@@ -43,9 +43,9 @@ func (f *File) Validate() error {
 			}
 		}
 	}
-	validateUser(add, "global.user", f.Global.User)
-	validateEnv(add, "global.env", f.Global.Env)
-	validatePathTranslation(add, "global.path_translation", f.Global.PathTranslation)
+	validateUser(add, "defaults.user", f.Defaults.User)
+	validateEnv(add, "defaults.env", f.Defaults.Env)
+	validatePathTranslation(add, "defaults.path_translation", f.Defaults.PathTranslation)
 
 	for _, name := range sortedKeys(f.Aliases) {
 		a := f.Aliases[name]

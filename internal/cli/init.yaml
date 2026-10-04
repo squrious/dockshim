@@ -1,5 +1,5 @@
 # dockshim configuration: https://github.com/squrious/dockshim/blob/main/docs/configuration.md
-# Commented values are the defaults: uncommenting them changes nothing.
+# Commented values are the built-in ones: uncommenting them changes nothing.
 # Values support environment interpolation: $VAR, ${VAR}, ${VAR:-default}, ${VAR:?error}, $$ for a literal $.
 
 # Options passed to every docker compose call. Unset, compose applies its own discovery.
@@ -7,8 +7,8 @@
 #   files: []                   # relative to the project root
 #   project_name: ""
 
-# Defaults for every alias.
-# global:
+# Settings every alias inherits.
+# defaults:
 #   user: host                  # uid:gid running dockshim. Or uid[:gid], name[:group]
 #   env:                        # https://github.com/squrious/dockshim/blob/main/docs/configuration.md#environment-forwarding
 #     deny: []                  # appended to the built-in denylist
@@ -20,7 +20,7 @@
 #     allow: []                 # directories whose files may be copied, on top of the system temporary ones
 
 # Each alias runs the command of the same name in a compose service.
-# It can also set user, env and path_translation (scalars override global, lists append, vars merge),
+# It can also set user, env and path_translation (scalars override defaults, lists append, vars merge),
 # and path_mapping (e.g. {.: /app}), otherwise inferred from the container's bind mounts.
 aliases:
   # Example, not a default:

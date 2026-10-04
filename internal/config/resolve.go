@@ -20,7 +20,7 @@ import (
 // UserHost runs commands as the uid:gid running dockshim. It is the default user.
 const UserHost = "host"
 
-// Project is a fully resolved configuration: paths are absolute, aliases merged with global.
+// Project is a fully resolved configuration: paths are absolute, aliases merged with defaults.
 type Project struct {
 	Root    string
 	File    string
@@ -31,7 +31,7 @@ type Project struct {
 // BinDir holds the shims.
 func (p *Project) BinDir() string { return filepath.Join(p.Root, RelBinDir) }
 
-// ResolvedAlias is an alias with global settings merged in: users are uid:gid or names, path
+// ResolvedAlias is an alias with the defaults merged in: users are uid:gid or names, path
 // mappings are absolute, and Env includes the built-in denylist.
 type ResolvedAlias struct {
 	Service string
@@ -45,7 +45,7 @@ type ResolvedAlias struct {
 	PathTranslation  ResolvedPathTranslation
 }
 
-// ResolvedPathTranslation is path_translation with its defaults applied.
+// ResolvedPathTranslation is path_translation with unset values filled in.
 type ResolvedPathTranslation struct {
 	Enabled bool
 	// Allow lists host directories whose files may be copied into the container,
@@ -101,7 +101,7 @@ func Parse(data []byte, lookup LookupFunc) (*File, error) {
 	return &f, nil
 }
 
-// Resolve merges global settings into each alias and makes paths absolute.
+// Resolve merges the defaults into each alias and makes paths absolute.
 func (f *File) Resolve(file string) *Project {
 	root := hostpath.Real(filepath.Dir(file))
 	p := &Project{
@@ -120,21 +120,21 @@ func (f *File) Resolve(file string) *Project {
 	for name, a := range f.Aliases {
 		r := &ResolvedAlias{
 			Service:          a.Service,
-			User:             resolveUser(string(cmp.Or(a.User, f.Global.User, UserHost))),
+			User:             resolveUser(string(cmp.Or(a.User, f.Defaults.User, UserHost))),
 			InferPathMapping: a.PathMapping == nil,
 			PathMapping:      pathmap.Map{},
 			Env: envfilter.Rules{
-				Deny:         concat(envfilter.DefaultDeny, f.Global.Env.Deny, a.Env.Deny),
-				DenyPrefixes: concat(envfilter.DefaultDenyPrefixes, f.Global.Env.DenyPrefixes, a.Env.DenyPrefixes),
-				Allow:        concat(f.Global.Env.Allow, a.Env.Allow),
+				Deny:         concat(envfilter.DefaultDeny, f.Defaults.Env.Deny, a.Env.Deny),
+				DenyPrefixes: concat(envfilter.DefaultDenyPrefixes, f.Defaults.Env.DenyPrefixes, a.Env.DenyPrefixes),
+				Allow:        concat(f.Defaults.Env.Allow, a.Env.Allow),
 			},
 			Vars: map[string]string{},
 			PathTranslation: ResolvedPathTranslation{
-				Enabled: cmp.Or(a.PathTranslation.Enabled, f.Global.PathTranslation.Enabled, "true").Bool(),
-				Allow:   cleanAll(concat(f.Global.PathTranslation.Allow, a.PathTranslation.Allow)),
+				Enabled: cmp.Or(a.PathTranslation.Enabled, f.Defaults.PathTranslation.Enabled, "true").Bool(),
+				Allow:   cleanAll(concat(f.Defaults.PathTranslation.Allow, a.PathTranslation.Allow)),
 			},
 		}
-		for _, vars := range []map[string]Scalar{f.Global.Env.Vars, a.Env.Vars} {
+		for _, vars := range []map[string]Scalar{f.Defaults.Env.Vars, a.Env.Vars} {
 			for k, v := range vars {
 				r.Vars[k] = string(v)
 			}

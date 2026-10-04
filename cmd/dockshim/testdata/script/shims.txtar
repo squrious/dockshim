@@ -55,7 +55,7 @@ aliases:
   node:
     service: tools
 -- old.yaml --
-global:
+defaults:
   shim_mode: wrapper
 aliases:
   php: {service: tools}

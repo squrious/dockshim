@@ -10,9 +10,9 @@ import (
 
 // File is a config file as written, after interpolation. Load turns it into a Project.
 type File struct {
-	Compose *Compose         `yaml:"compose"`
-	Global  Global           `yaml:"global"`
-	Aliases map[string]Alias `yaml:"aliases"`
+	Compose  *Compose         `yaml:"compose"`
+	Defaults Defaults         `yaml:"defaults"`
+	Aliases  map[string]Alias `yaml:"aliases"`
 }
 
 // Compose holds the options passed to every docker compose call. Files are relative to the project root.
@@ -21,8 +21,8 @@ type Compose struct {
 	ProjectName string   `yaml:"project_name"`
 }
 
-// Global holds the defaults every alias inherits.
-type Global struct {
+// Defaults holds the settings every alias inherits.
+type Defaults struct {
 	User            Scalar          `yaml:"user"`
 	Env             Env             `yaml:"env"`
 	PathTranslation PathTranslation `yaml:"path_translation"`
@@ -42,7 +42,7 @@ type Env struct {
 	Vars         map[string]Scalar `yaml:"vars"`
 }
 
-// Alias is one entry point. Its settings override or extend Global.
+// Alias is one entry point. Its settings override or extend Defaults.
 type Alias struct {
 	Service         string            `yaml:"service"`
 	PathMapping     map[string]string `yaml:"path_mapping"` // nil: inferred from the container's bind mounts

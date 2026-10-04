@@ -37,13 +37,13 @@ exec cat
 stdout '^hello from stdin$'
 
 -- .dockshim.yaml --
-global:
+defaults:
   env:
     deny: [HIDDEN]
     allow: [SSH_AUTH_SOCK]
     vars:
       APP_ENV: test
-      GREETING: global
+      GREETING: defaults
 aliases:
   php:
     service: tools
