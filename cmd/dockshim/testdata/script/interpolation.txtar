@@ -17,11 +17,11 @@ stdout '^  service +tools$'
 
 # Unset variables without a default are errors; empty ones are kept.
 cd required
-! exec dockshim validate
+! exec dockshim config
 stderr 'required/.dockshim.yaml: line 3: variable NEVER_SET is not set \(use \$\{NEVER_SET:-\} to allow it\)'
 cd $WORK
 env SVC=
-! exec dockshim validate
+! exec dockshim config
 stderr 'aliases.php.service: is required'
 
 -- .dockshim.yaml --

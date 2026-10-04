@@ -2,7 +2,7 @@
 
 The config lives in `.dockshim.yaml` (`.dockshim.yml` also works, but not both). The directory that holds it is the project root. dockshim looks for it upwards: from the shim's own directory in alias mode, and from the current directory for manager commands.
 
-Unknown keys are errors, and `dockshim validate` reports every problem at once.
+Unknown keys are errors, and any command that reads the config reports all the problems at once.
 
 ## Reference
 

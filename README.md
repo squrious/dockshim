@@ -81,7 +81,6 @@ php -v
 | `dockshim init` | Create a starter `.dockshim.yaml` |
 | `dockshim install` | Create the alias entry points in `.dockshim/bin` and remove stale ones |
 | `dockshim config` | Show the effective configuration, including inferred path mappings |
-| `dockshim validate` | Validate the configuration |
 | `dockshim run <alias> [args]` | Run an alias without its shim |
 | `dockshim version` | Print the version |
 

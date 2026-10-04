@@ -42,11 +42,6 @@ symlink .dockshim/bin/node -> /old/place/dockshim
 exec $WORK/bin/dockshim install
 stderr 'skipped, not a dockshim shim: node'
 
-# shim_mode no longer exists.
-cp $WORK/old.yaml .dockshim.yaml
-! exec $WORK/bin/dockshim validate
-stderr 'shim_mode'
-
 -- project/.dockshim.yaml --
 aliases:
   php:
@@ -54,8 +49,3 @@ aliases:
     path_mapping: {.: /app}
   node:
     service: tools
--- old.yaml --
-defaults:
-  shim_mode: wrapper
-aliases:
-  php: {service: tools}

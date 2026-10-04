@@ -63,19 +63,6 @@ func newRoot(e *Env) *cobra.Command {
 	root.AddCommand(
 		newConfigCmd(e),
 		&cobra.Command{
-			Use:   "validate",
-			Short: "Validate the configuration",
-			Args:  cobra.NoArgs,
-			RunE: func(cmd *cobra.Command, args []string) error {
-				proj, err := e.load()
-				if err != nil {
-					return err
-				}
-				cmd.Printf("%s is valid\n", proj.File)
-				return nil
-			},
-		},
-		&cobra.Command{
 			Use:   "install",
 			Short: "Create an entry point for each alias in " + config.RelBinDir + ", and remove stale ones",
 			Args:  cobra.NoArgs,

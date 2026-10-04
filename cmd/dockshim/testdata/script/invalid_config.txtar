@@ -1,25 +1,26 @@
-! exec dockshim validate
+# Config errors are reported by any command, all at once.
+! exec dockshim config
 stderr 'invalid config:'
 stderr 'aliases.none.service: is required'
 stderr 'aliases.php.path_mapping\[\.\]: container path "app" must be absolute'
 stderr 'defaults.user: invalid user'
 
 cd $WORK/unknown
-! exec dockshim validate
+! exec dockshim config
 stderr 'field servce not found'
 
 # Aliases only target compose services.
 cd $WORK/container
-! exec dockshim validate
+! exec dockshim config
 stderr 'field container not found'
 
 cd $WORK/ambiguous
-! exec dockshim validate
+! exec dockshim config
 stderr 'ambiguous config'
 
 cd $WORK/empty
-exec dockshim validate
-stdout 'is valid'
+exec dockshim config
+stdout '^config +'$WORK'/empty/.dockshim.yml$'
 
 cd $WORK/ambiguous
 ! exec dockshim bogus

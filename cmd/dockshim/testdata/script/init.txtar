@@ -3,8 +3,8 @@ exec dockshim init
 stdout '^created '$WORK'/.dockshim.yaml$'
 grep '^aliases:$' .dockshim.yaml
 ! exists .dockshim
-exec dockshim validate
-stdout 'is valid'
+exec dockshim config
+stdout '^config +'$WORK'/.dockshim.yaml$'
 
 # An existing config is never overwritten.
 cp custom.yaml .dockshim.yaml
