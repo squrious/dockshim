@@ -161,15 +161,89 @@ aliases: {php: {service: a, path_translation: {enabled: "${X:-false}", allow: [/
 	}
 }
 
-func TestParseRejectsUnknownFields(t *testing.T) {
-	if _, err := Parse([]byte("aliases: {php: {servce: a}}"), noEnv); err == nil || !strings.Contains(err.Error(), "servce") {
-		t.Fatalf("got %v", err)
+func TestParseStructure(t *testing.T) {
+	tests := []struct {
+		name string
+		yaml string
+		want []string
+	}{
+		{"empty", "", nil},
+		{"comments only", "# nothing\n", nil},
+		{"nulls", "compose:\ndefaults: {user: ~}\naliases: {php: {service: a, env: {vars: {A: null}}}}", nil},
+		{"merge keys", `
+aliases:
+  php: &php {service: a, user: "1"}
+  node: {<<: *php, user: "2"}
+  js: {<<: [*php], env: {vars: {<<: {A: b}}}}
+`, nil},
+		{"unknown keys", `
+global: 1
+aliases:
+  php: {servce: a, env: {forward: [A]}}
+`, []string{
+			`global: unknown key, expected one of compose, defaults, aliases (line 2)`,
+			`aliases.php.servce: unknown key, expected one of service, path_mapping, user, env, path_translation (line 4)`,
+			`aliases.php.env.forward: unknown key, expected one of deny, deny_prefixes, allow, vars (line 4)`,
+		}},
+		{"unknown key in merged mapping", `
+aliases:
+  php: &php {service: a, servce: b}
+  node: {<<: *php}
+`, []string{
+			`aliases.php.servce: unknown key, expected one of service, path_mapping, user, env, path_translation (line 3)`,
+			`aliases.node.servce: unknown key, expected one of service, path_mapping, user, env, path_translation (line 3)`,
+		}},
+		{"wrong kinds", `
+compose: {files: a.yaml}
+defaults: {user: [1], env: {vars: {A: {b: c}, ? [B] : x}}}
+aliases:
+  php: {service: a, path_mapping: {.: [x]}, path_translation: {allow: [[x]]}}
+  node: []
+`, []string{
+			`compose.files: expected a list, got "a.yaml" (line 2)`,
+			`defaults.user: expected a single value, got a list (line 3)`,
+			`defaults.env.vars[A]: expected a single value, got a mapping (line 3)`,
+			`defaults.env.vars: expected a single value as key, got a list (line 3)`,
+			`aliases.php.path_mapping[.]: expected a single value, got a list (line 5)`,
+			`aliases.php.path_translation.allow[0]: expected a single value, got a list (line 5)`,
+			`aliases.node: expected a mapping, got a list (line 6)`,
+		}},
+		{"anchor cycles", `
+aliases: &all
+  php: &php {service: a, <<: *php}
+  node: *all
+`, []string{
+			`aliases.php: anchor "php" contains itself (line 3)`,
+			`aliases.node: anchor "all" contains itself (line 2)`,
+		}},
+		{"root", "- a", []string{`top level: expected a mapping, got a list (line 1)`}},
+		{"duplicate keys", `
+aliases:
+  php: {service: a}
+  php: {service: b}
+  node: {service: a, service: b}
+`, []string{
+			`aliases.php: duplicate key, first at line 3 (line 4)`,
+			`aliases.node.service: duplicate key, first at line 5 (line 5)`,
+		}},
 	}
-}
-
-func TestScalarRejectsCollections(t *testing.T) {
-	if _, err := Parse([]byte("defaults: {user: [1]}"), noEnv); err == nil || !strings.Contains(err.Error(), "expected a scalar value") {
-		t.Fatalf("got %v", err)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := Parse([]byte(tt.yaml), noEnv)
+			if tt.want == nil {
+				if err != nil {
+					t.Fatalf("unexpected error: %v", err)
+				}
+				return
+			}
+			var verr *ValidationError
+			if !errors.As(err, &verr) {
+				t.Fatalf("expected ValidationError, got %v", err)
+			}
+			if !slices.Equal(verr.Problems, tt.want) {
+				t.Fatalf("got problems:\n%s", strings.Join(verr.Problems, "\n"))
+			}
+		})
 	}
 }
 

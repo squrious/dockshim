@@ -2,7 +2,6 @@
 package config
 
 import (
-	"fmt"
 	"strconv"
 
 	"gopkg.in/yaml.v3"
@@ -55,9 +54,6 @@ type Alias struct {
 type Scalar string
 
 func (s *Scalar) UnmarshalYAML(n *yaml.Node) error {
-	if n.Kind != yaml.ScalarNode {
-		return fmt.Errorf("line %d: expected a scalar value", n.Line)
-	}
 	if n.Tag == "!!null" {
 		*s = ""
 		return nil

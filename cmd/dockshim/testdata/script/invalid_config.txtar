@@ -5,14 +5,18 @@ stderr 'aliases.none.service: is required'
 stderr 'aliases.php.path_mapping\[\.\]: container path "app" must be absolute'
 stderr 'defaults.user: invalid user'
 
+# Structural errors name config keys, not Go types.
 cd $WORK/unknown
 ! exec dockshim config
-stderr 'field servce not found'
+stderr 'invalid config:'
+stderr 'aliases\.php\.servce: unknown key, expected one of service, path_mapping, user, env, path_translation \(line 2\)'
+stderr 'compose\.files: expected a list, got "a\.yaml" \(line 3\)'
+! stderr 'config\.|!!'
 
 # Aliases only target compose services.
 cd $WORK/container
 ! exec dockshim config
-stderr 'field container not found'
+stderr 'aliases\.node\.container: unknown key'
 
 cd $WORK/ambiguous
 ! exec dockshim config
@@ -37,6 +41,7 @@ aliases:
 -- unknown/.dockshim.yaml --
 aliases:
   php: {servce: a}
+compose: {files: a.yaml}
 -- container/.dockshim.yaml --
 aliases:
   node: {container: node}

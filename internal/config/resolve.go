@@ -1,11 +1,8 @@
 package config
 
 import (
-	"bytes"
 	"cmp"
-	"errors"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -73,28 +70,25 @@ func Load(file string, lookup LookupFunc) (*Project, error) {
 	return f.Resolve(file), nil
 }
 
-// Parse decodes a config file, rejecting unknown fields, then interpolates its values (not its
-// mapping keys) with lookup. It does not validate.
+// Parse decodes a config file, reporting unknown keys and values of the wrong kind as a
+// *ValidationError, then interpolates its values (not its mapping keys) with lookup. It does not
+// validate values.
 func Parse(data []byte, lookup LookupFunc) (*File, error) {
-	// Node.Decode cannot reject unknown fields: check the raw document strictly first.
-	var f File
-	dec := yaml.NewDecoder(bytes.NewReader(data))
-	dec.KnownFields(true)
-	if err := dec.Decode(&f); err != nil {
-		if errors.Is(err, io.EOF) {
-			return &f, nil
-		}
-		return nil, err
-	}
-
 	var doc yaml.Node
 	if err := yaml.Unmarshal(data, &doc); err != nil {
 		return nil, err
 	}
+	// Kinds start at 1: 0 means no document (empty file or comments only).
+	if doc.Kind == 0 {
+		return &File{}, nil
+	}
+	if problems := checkStructure(&doc); len(problems) > 0 {
+		return nil, &ValidationError{Problems: problems}
+	}
 	if err := interpolateNode(&doc, lookup); err != nil {
 		return nil, err
 	}
-	f = File{}
+	var f File
 	if err := doc.Decode(&f); err != nil {
 		return nil, err
 	}

@@ -96,7 +96,7 @@ aliases:
 		t.Fatalf("got %v", err)
 	}
 	_, err = Parse([]byte("aliases:\n  php:\n    servce: ${NOPE}\n"), lookup)
-	if err == nil || !strings.Contains(err.Error(), "line 3: field servce not found") {
-		t.Fatalf("unknown fields must be reported with original lines first, got %v", err)
+	if err == nil || !strings.Contains(err.Error(), "aliases.php.servce: unknown key") {
+		t.Fatalf("unknown keys must be reported before interpolation, got %v", err)
 	}
 }
