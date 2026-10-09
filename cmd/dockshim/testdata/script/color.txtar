@@ -15,7 +15,7 @@ stdout '^Usage:$'
 stdout '^  config +Print the effective configuration$'
 ! stdout '\x1b'
 exec dockshim run --help
-stdout '^  dockshim run <alias> \[args\.\.\.\] \[flags\]$'
+stdout '^  dockshim run --shim <path> <alias> \[args\.\.\.\]$'
 
 -- .dockshim.yaml --
 aliases:

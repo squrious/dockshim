@@ -16,7 +16,7 @@ func TestHelp(t *testing.T) {
 		want  []string
 	}{
 		{"root", []string{"--help"}, style.Style{}, []string{"Usage:\n  dockshim [command]\n", "\n  config      Print the effective configuration\n", `Use "dockshim [command] --help"`}},
-		{"subcommand", []string{"run", "--help"}, style.Style{}, []string{"Run an alias, as if invoked through its shim\n\nUsage:\n  dockshim run <alias> [args...] [flags]\n\nFlags:\n"}},
+		{"subcommand", []string{"run", "--help"}, style.Style{}, []string{"Run an alias, called by its entry point in .dockshim/bin\n\nUsage:\n  dockshim run --shim <path> <alias> [args...]\n\nFlags:\n"}},
 		{"styled", []string{"--help"}, style.Style{Enabled: true}, []string{"\x1b[1mUsage:\x1b[0m\n", "  \x1b[36mconfig    \x1b[0m  Print"}},
 	}
 	for _, tt := range tests {

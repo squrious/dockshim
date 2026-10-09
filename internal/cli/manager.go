@@ -14,7 +14,6 @@ import (
 
 	"github.com/squrious/dockshim/internal/config"
 	"github.com/squrious/dockshim/internal/execplan"
-	"github.com/squrious/dockshim/internal/hostpath"
 	"github.com/squrious/dockshim/internal/pathmap"
 	"github.com/squrious/dockshim/internal/shim"
 )
@@ -51,7 +50,15 @@ func (e *Env) load() (*config.Project, error) {
 	if err != nil {
 		return nil, err
 	}
-	return e.discover(cwd, "")
+	file, err := config.Discover(cwd)
+	if err != nil {
+		return nil, err
+	}
+	return e.loadConfig(file)
+}
+
+func (e *Env) loadConfig(file string) (*config.Project, error) {
+	return config.Load(file, config.LookupEnviron(e.Environ))
 }
 
 func newRoot(e *Env) *cobra.Command {
@@ -186,35 +193,49 @@ func warnUnknownServices(e *Env, proj *config.Project) {
 	}
 }
 
+// newRunCmd is the command the entry points call.
 func newRunCmd(e *Env) *cobra.Command {
 	var shimPath string
 	cmd := &cobra.Command{
-		Use:   "run <alias> [args...]",
-		Short: "Run an alias, as if invoked through its shim",
-		Args:  cobra.MinimumNArgs(1),
+		Use:                   "run --shim <path> <alias> [args...]",
+		Short:                 "Run an alias, called by its entry point in " + config.RelBinDir,
+		Hidden:                true,
+		DisableFlagsInUseLine: true,
+		Args: func(cmd *cobra.Command, args []string) error {
+			if shimPath == "" {
+				alias := "<alias>"
+				if len(args) > 0 {
+					alias = args[0]
+				}
+				return fmt.Errorf("run only serves the entry points: call %s/%s instead", config.RelBinDir, alias)
+			}
+			return cobra.MinimumNArgs(1)(cmd, args)
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cwd, err := e.cwd()
 			if err != nil {
 				return err
 			}
-			if shimPath != "" && !filepath.IsAbs(shimPath) {
-				shimPath = filepath.Join(cwd, shimPath)
+			if !filepath.IsAbs(shimPath) {
+				// Not filepath.Join: cleaning would drop "link/.." before the link is resolved.
+				shimPath = cwd + string(filepath.Separator) + shimPath
 			}
-			proj, err := e.discover(cwd, shimPath)
+			file, err := config.ForShim(shimPath)
 			if err != nil {
 				return err
 			}
-			// A shim of .dockshim/bin without its alias is one install would remove.
-			installed := shimPath != "" && hostpath.Real(filepath.Dir(shimPath)) == proj.BinDir()
-			if code := execAlias(e, proj, args[0], cwd, args[1:], installed); code != 0 {
+			proj, err := e.loadConfig(file)
+			if err != nil {
+				return err
+			}
+			if code := execAlias(e, proj, args[0], cwd, args[1:]); code != 0 {
 				return exitCodeError(code)
 			}
 			return nil
 		},
 	}
-	// Shims pass their own path, so that discovery is anchored at the shim.
-	cmd.Flags().StringVar(&shimPath, "shim", "", "path of the shim this call comes from")
-	_ = cmd.Flags().MarkHidden("shim")
+	// The project is the one holding the shim, whatever the working directory.
+	cmd.Flags().StringVar(&shimPath, "shim", "", "`path` of the entry point this call comes from (required)")
 	// Everything after the alias name belongs to the aliased command.
 	cmd.Flags().SetInterspersed(false)
 	return cmd

@@ -23,10 +23,10 @@ stdout '^1$'
 exec php
 grep 'up --detach' $FAKE_DOCKER_STATE/calls
 
-# dockshim run behaves like the shim, and leaves flags to the aliased command.
+# Flags after the alias belong to the aliased command, --shim included.
 env FAKE_EXEC_EXIT=3
-exec sh -c 'dockshim run php --version -c x; echo code=$?'
-stdout '^cmd php --version -c x$'
+exec sh -c 'php --version -c x --shim y; echo code=$?'
+stdout '^cmd php --version -c x --shim y$'
 stdout '^code=3$'
 
 -- .dockshim.yaml --

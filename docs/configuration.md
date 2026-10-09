@@ -1,6 +1,6 @@
 # Configuration
 
-The config lives in `.dockshim.yaml` (`.dockshim.yml` also works, but not both). The directory that holds it is the project root. dockshim looks for it upwards: from the shim's own directory in alias mode, and from the current directory for manager commands, `run` included. A shim always runs the alias of its own project, wherever it is called from.
+The config lives in `.dockshim.yaml` (`.dockshim.yml` also works, but not both). The directory that holds it is the project root. `install` and `config` look for it upwards from the current directory. A shim only uses the config of its own project, the one holding its `.dockshim/bin`, wherever it is called from: a link to a shim works, a copy elsewhere doesn't.
 
 Unknown keys are errors, and any command that reads the config reports all the problems at once.
 
@@ -41,7 +41,7 @@ In an alias, scalars override `defaults`, lists are appended and `vars` are merg
 
 `dockshim install` creates one `/bin/sh` script per alias in `.dockshim/bin`. It runs `dockshim run --shim`, finding `dockshim` through `PATH`, so upgrading or moving the binary needs no reinstall. `dockshim` must therefore be in the `PATH` of whatever runs the shims, IDEs included.
 
-The scripts are generated: don't edit them, change the config and run `install` again.
+The scripts are generated: don't edit them, change the config and run `install` again. Aliases only run through their shims: `dockshim run`, which they call, is not meant to be run by hand.
 
 `.dockshim/` only holds generated files: `install` writes a `.dockshim/.gitignore` that ignores it all. `.dockshim/bin` belongs to dockshim: `install` makes it contain exactly one script per alias, and removes anything else.
 

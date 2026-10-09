@@ -81,7 +81,6 @@ php -v
 | `dockshim init` | Create a starter `.dockshim.yaml` |
 | `dockshim install` | Create the alias entry points in `.dockshim/bin`, removing anything else there |
 | `dockshim config` | Show the effective configuration, including inferred path mappings, and warn about out-of-date shims or unknown services |
-| `dockshim run <alias> [args]` | Run an alias without its shim |
 | `dockshim version` | Print the version |
 
 Output is colored on a terminal only. Set `NO_COLOR` to turn colors off.

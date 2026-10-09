@@ -1,9 +1,7 @@
 package cli
 
 import (
-	"fmt"
 	"maps"
-	"path/filepath"
 	"slices"
 	"strings"
 
@@ -14,29 +12,12 @@ import (
 
 const exitUnknownAlias = 127
 
-// discover loads the config of the shim's project, or of cwd without a shim. A shim never falls
-// back to cwd: IDEs may run it from any directory, and `dockshim run` already follows cwd.
-func (e *Env) discover(cwd, shimPath string) (*config.Project, error) {
-	start := cwd
-	if shimPath != "" {
-		start = filepath.Dir(shimPath)
-	}
-	file, err := config.Discover(start)
-	if err != nil {
-		return nil, err
-	}
-	return config.Load(file, config.LookupEnviron(e.Environ))
-}
-
-// installed is true when the alias runs through a shim of .dockshim/bin.
-func execAlias(e *Env, proj *config.Project, name, cwd string, args []string, installed bool) int {
+// execAlias runs an alias of proj for a shim of its project: when the alias is gone, the shim is one
+// install would remove.
+func execAlias(e *Env, proj *config.Project, name, cwd string, args []string) int {
 	alias, ok := proj.Aliases[name]
 	if !ok {
-		hint := ""
-		if installed {
-			hint = fmt.Sprintf(": run `%s install` to remove its shim", config.ToolName)
-		}
-		e.errorf("alias %q is not defined in %s%s", name, proj.File, hint)
+		e.errorf("alias %q is not defined in %s: run `%s install` to remove its shim", name, proj.File, config.ToolName)
 		return exitUnknownAlias
 	}
 	code, err := execplan.Run(execplan.Input{

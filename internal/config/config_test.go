@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/squrious/dockshim/internal/envfilter"
+	"github.com/squrious/dockshim/internal/hostpath"
 	"github.com/squrious/dockshim/internal/pathmap"
 )
 
@@ -42,19 +43,6 @@ func TestDiscover(t *testing.T) {
 		}
 	})
 
-	t.Run(".yml from the shims directory", func(t *testing.T) {
-		root := t.TempDir()
-		write(t, filepath.Join(root, ".dockshim.yml"), minimal)
-		bin := filepath.Join(root, ".dockshim", "bin")
-		if err := os.MkdirAll(bin, 0o755); err != nil {
-			t.Fatal(err)
-		}
-		file, err := Discover(bin)
-		if err != nil || file != filepath.Join(root, ".dockshim.yml") {
-			t.Fatalf("got %q, %v", file, err)
-		}
-	})
-
 	t.Run("ambiguous", func(t *testing.T) {
 		root := t.TempDir()
 		write(t, filepath.Join(root, ".dockshim.yaml"), minimal)
@@ -83,6 +71,87 @@ func TestDiscover(t *testing.T) {
 			t.Fatalf("got %v", err)
 		}
 	})
+}
+
+func TestForShim(t *testing.T) {
+	tests := []struct {
+		name    string
+		setup   func(t *testing.T, root string) (shim string)
+		want    string // config file, relative to root
+		wantIs  error
+		wantErr string
+	}{
+		{"yaml", func(t *testing.T, root string) string {
+			write(t, filepath.Join(root, ".dockshim.yaml"), minimal)
+			return shimAt(t, root, "")
+		}, ".dockshim.yaml", nil, ""},
+		{"yml", func(t *testing.T, root string) string {
+			write(t, filepath.Join(root, ".dockshim.yml"), minimal)
+			return shimAt(t, root, "")
+		}, ".dockshim.yml", nil, ""},
+		{"link to a shim", func(t *testing.T, root string) string {
+			write(t, filepath.Join(root, "proj", ".dockshim.yaml"), minimal)
+			return linkTo(t, shimAt(t, root, "proj"), filepath.Join(root, "elsewhere", "php"))
+		}, "proj/.dockshim.yaml", nil, ""},
+		{"linked shims directory", func(t *testing.T, root string) string {
+			write(t, filepath.Join(root, "proj", ".dockshim.yaml"), minimal)
+			bin := linkTo(t, filepath.Dir(shimAt(t, root, "proj")), filepath.Join(root, "elsewhere", "bin"))
+			return filepath.Join(bin, "php")
+		}, "proj/.dockshim.yaml", nil, ""},
+		{"config above the project only", func(t *testing.T, root string) string {
+			write(t, filepath.Join(root, ".dockshim.yaml"), minimal)
+			return shimAt(t, root, "proj")
+		}, "", ErrNotFound, "proj: no dockshim config found"},
+		{"outside the shims directory", func(t *testing.T, root string) string {
+			write(t, filepath.Join(root, ".dockshim.yaml"), minimal)
+			write(t, filepath.Join(root, "php"), "")
+			return filepath.Join(root, "php")
+		}, "", nil, "php is not in a .dockshim/bin directory"},
+		{"below the shims directory", func(t *testing.T, root string) string {
+			write(t, filepath.Join(root, ".dockshim.yaml"), minimal)
+			write(t, filepath.Join(root, ".dockshim", "bin", "sub", "php"), "")
+			return filepath.Join(root, ".dockshim", "bin", "sub", "php")
+		}, "", nil, "is not in a .dockshim/bin directory"},
+		{"ambiguous", func(t *testing.T, root string) string {
+			write(t, filepath.Join(root, ".dockshim.yaml"), minimal)
+			write(t, filepath.Join(root, ".dockshim.yml"), minimal)
+			return shimAt(t, root, "")
+		}, "", nil, "ambiguous config"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			root := hostpath.Real(t.TempDir())
+			file, err := ForShim(tt.setup(t, root))
+			switch {
+			case tt.wantErr != "" || tt.wantIs != nil:
+				if err == nil || !strings.Contains(err.Error(), tt.wantErr) || (tt.wantIs != nil && !errors.Is(err, tt.wantIs)) {
+					t.Fatalf("got %q, %v", file, err)
+				}
+			case err != nil || file != filepath.Join(root, tt.want):
+				t.Fatalf("got %q, %v, want %s", file, err, tt.want)
+			}
+		})
+	}
+}
+
+// linkTo creates link pointing to target, and returns it.
+func linkTo(t *testing.T, target, link string) string {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(link), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(target, link); err != nil {
+		t.Fatal(err)
+	}
+	return link
+}
+
+// shimAt creates a shim in the shims directory of the project at root/sub, and returns its path.
+func shimAt(t *testing.T, root, sub string) string {
+	t.Helper()
+	p := filepath.Join(root, sub, RelBinDir, "php")
+	write(t, p, "#!/bin/sh\n")
+	return p
 }
 
 func TestValidate(t *testing.T) {

@@ -1,26 +1,54 @@
-cd project
-# The config is found next to the shim even when run from outside the project,
-# and the container default workdir is kept.
+cd outer/project
+# A shim finds the config of its own project even when run from outside it, and the container
+# default workdir is kept.
 exec dockshim install
 mkdir $WORK/elsewhere
 cd $WORK/elsewhere
-exec $WORK/project/.dockshim/bin/php
+exec $WORK/outer/project/.dockshim/bin/php
 stdout '^target tools$'
 ! stdout 'workdir'
 
-# Without a shim, discovery walks up from the current directory.
+# A link to a shim belongs to the project of the shim.
+symlink link -> $WORK/outer/project/.dockshim/bin/php
+exec ./link
+stdout '^target tools$'
+
+# A relative path goes through links as the system does: hop/.. is the project, not elsewhere.
+symlink hop -> $WORK/outer/project/src
+exec hop/../.dockshim/bin/php
+stdout '^target tools$'
+
+# Manager commands walk up from the current directory instead.
 ! exec dockshim config
 stderr 'no dockshim config found'
 
-# A shim outside any project never falls back to the current directory: run does that.
-cp $WORK/project/.dockshim/bin/php $WORK/elsewhere/php
-cd $WORK/project
+# A copy outside .dockshim/bin belongs to no project.
+cp $WORK/outer/project/.dockshim/bin/php $WORK/elsewhere/php
 ! exec $WORK/elsewhere/php
-stderr 'no dockshim config found'
-exec dockshim run php
-stdout '^target tools$'
+stderr 'elsewhere/php is not in a \.dockshim/bin directory'
 
--- project/.dockshim.yaml --
+# Aliases run through their shims only.
+cd $WORK/outer/project
+rm $FAKE_DOCKER_STATE/calls
+! exec dockshim run php
+stderr '^dockshim: run only serves the entry points: call \.dockshim/bin/php instead$'
+! exec dockshim run
+stderr '^dockshim: run only serves the entry points: call \.dockshim/bin/<alias> instead$'
+! exists $FAKE_DOCKER_STATE/calls
+exec dockshim --help
+! stdout '^  run '
+
+# Nothing above the project is used: without its own config, a shim fails.
+rm .dockshim.yaml
+! exec .dockshim/bin/php
+stderr 'outer/project: no dockshim config found'
+! stdout .
+
+-- outer/.dockshim.yaml --
+aliases:
+  php: {service: other}
+-- outer/project/src/.keep --
+-- outer/project/.dockshim.yaml --
 aliases:
   php:
     service: tools

@@ -9,20 +9,6 @@ stderr '^dockshim: alias "node" is not defined in '$WORK'/.dockshim.yaml: run `d
 exists .dockshim/bin/node
 ! exists $FAKE_DOCKER_STATE/calls
 
-# Without a shim, an undefined alias is only a typo.
-! exec dockshim run node
-stderr '^dockshim: alias "node" is not defined in '$WORK'/.dockshim.yaml$'
-
-# A copy outside .dockshim/bin still runs its alias, silently. Without it, install can't help.
-mkdir old
-cp .dockshim/bin/php old/php
-cp .dockshim/bin/node old/node
-exec old/php
-stdout '^target tools$'
-! stderr .
-! exec old/node
-stderr '^dockshim: alias "node" is not defined in '$WORK'/.dockshim.yaml$'
-
 -- .dockshim.yaml --
 aliases:
   php: {service: tools}

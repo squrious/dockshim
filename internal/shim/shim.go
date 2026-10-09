@@ -15,7 +15,7 @@ import (
 	"github.com/squrious/dockshim/internal/config"
 )
 
-// script passes its own path, so that discovery is anchored at the shim, and the alias name
+// script passes its own path, so that its location gives its project, and the alias name
 // explicitly, so that a renamed copy or a case-insensitive lookup still runs the same alias.
 func script(alias string) []byte {
 	return fmt.Appendf(nil, `#!/bin/sh

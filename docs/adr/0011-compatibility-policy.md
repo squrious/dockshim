@@ -9,7 +9,7 @@ Supersedes ADR 9.
 - **Config deprecations**: a deprecated key keeps working, with a warning, until the next breaking release. Before 1.0, a change may break directly.
 
 ## Why
-- A directory dockshim owns (ADR 3) needs no way to tell its files from the user's, and rewriting by content needs no version: `install` migrates any shim.
+- A directory dockshim owns (ADR 12) needs no way to tell its files from the user's, and rewriting by content needs no version: `install` migrates any shim.
 - What the binary sees of a shim is its arguments, so they are the contract.
 
 ## Rejected

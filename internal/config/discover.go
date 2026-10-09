@@ -6,6 +6,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/squrious/dockshim/internal/hostpath"
 )
 
 const (
@@ -23,7 +25,8 @@ const (
 // Candidates are the config file names, in lookup order.
 var Candidates = []string{FileName, ".dockshim.yml"}
 
-// ErrNotFound is returned by Discover when there is no config file above the start directory.
+// ErrNotFound is returned when there is no config file: above the start directory for Discover,
+// in the project root for ForShim.
 var ErrNotFound = errors.New("no dockshim config found (looked for " + strings.Join(Candidates, ", ") + ")")
 
 // findIn returns the config file of dir, or "" if there is none.
@@ -67,4 +70,27 @@ func Discover(start string) (string, error) {
 		}
 		dir = parent
 	}
+}
+
+// ForShim returns the config file of the project that holds shim, an absolute path, in its
+// RelBinDir. Nothing above that project is looked at: a project without a config must not run
+// another one's aliases.
+func ForShim(shim string) (string, error) {
+	// A link to a shim, or a linked directory in PATH, belongs to the project of the real shim.
+	bin := filepath.Dir(hostpath.Real(shim))
+	root, ok := strings.CutSuffix(bin, string(filepath.Separator)+filepath.FromSlash(RelBinDir))
+	if !ok {
+		return "", fmt.Errorf("%s is not in a %s directory", shim, RelBinDir)
+	}
+	if root == "" {
+		root = string(filepath.Separator)
+	}
+	file, err := findIn(root)
+	if err != nil {
+		return "", err
+	}
+	if file == "" {
+		return "", fmt.Errorf("%s: %w", root, ErrNotFound)
+	}
+	return file, nil
 }
