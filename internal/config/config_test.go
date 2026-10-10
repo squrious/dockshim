@@ -154,6 +154,41 @@ func shimAt(t *testing.T, root, sub string) string {
 	return p
 }
 
+func TestAliasNames(t *testing.T) {
+	tests := []struct {
+		name    string
+		config  string
+		want    []string
+		wantErr string
+	}{
+		{"sorted", "aliases: {php: {service: a}, composer: {service: a}}\n", []string{"composer", "php"}, ""},
+		{"values neither interpolated nor checked", "defaults:\n  user: ${APP_USER_ID}\naliases:\n  php: {user: not valid}\n", []string{"php"}, ""},
+		{"tagged value only valid once interpolated", "aliases:\n  php:\n    service: !!int ${X}\n", []string{"php"}, ""},
+		{"null aliases", "aliases:\n", nil, ""},
+		{"anchors and merge keys", "aliases:\n  php: &base {service: a}\n  composer: *base\n  <<: {node: {service: b}}\n", []string{"composer", "node", "php"}, ""},
+		{"empty", "# nothing yet\n", nil, ""},
+		{"unknown key", "aliases: {php: {servce: a}}\n", nil, "aliases.php.servce: unknown key"},
+		{"invalid name", "aliases: {dockshim: {service: a}}\n", nil, "aliases.dockshim: invalid alias name"},
+		{"syntax", "aliases: [\n", nil, "yaml:"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			file := filepath.Join(t.TempDir(), ".dockshim.yaml")
+			write(t, file, tt.config)
+			got, err := AliasNames(file)
+			if tt.wantErr != "" {
+				if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+					t.Fatalf("got %v, %v, want error %q", got, err, tt.wantErr)
+				}
+				return
+			}
+			if err != nil || !slices.Equal(got, tt.want) {
+				t.Fatalf("got %v, %v, want %v", got, err, tt.want)
+			}
+		})
+	}
+}
+
 func TestValidate(t *testing.T) {
 	tests := []struct {
 		name string

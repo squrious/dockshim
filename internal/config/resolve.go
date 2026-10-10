@@ -70,22 +70,53 @@ func Load(file string, lookup LookupFunc) (*Project, error) {
 	return f.Resolve(file), nil
 }
 
+// AliasNames reads the alias names of a config file, an absolute path, sorted. It checks the
+// syntax, the structure and the names, but neither interpolates nor validates values: names are
+// keys, which are never interpolated, and install needs nothing else.
+func AliasNames(file string) ([]string, error) {
+	data, err := os.ReadFile(file)
+	if err != nil {
+		return nil, err
+	}
+	doc, err := parseNode(data)
+	if err != nil {
+		return nil, fmt.Errorf("%s: %w", file, err)
+	}
+	if doc == nil {
+		return nil, nil
+	}
+	// Values stay undecoded: a raw one may only decode once interpolated, as "!!int ${X}" does.
+	var f struct {
+		Aliases map[string]yaml.Node `yaml:"aliases"`
+	}
+	if err := doc.Decode(&f); err != nil {
+		return nil, fmt.Errorf("%s: %w", file, err)
+	}
+	names := sortedKeys(f.Aliases)
+	var problems []string
+	for _, name := range names {
+		if p := aliasNameProblem(name); p != "" {
+			problems = append(problems, "aliases."+name+": "+p)
+		}
+	}
+	if len(problems) > 0 {
+		return nil, fmt.Errorf("%s: %w", file, &ValidationError{Problems: problems})
+	}
+	return names, nil
+}
+
 // Parse decodes a config file, reporting unknown keys and values of the wrong kind as a
 // *ValidationError, then interpolates its values (not its mapping keys) with lookup. It does not
 // validate values.
 func Parse(data []byte, lookup LookupFunc) (*File, error) {
-	var doc yaml.Node
-	if err := yaml.Unmarshal(data, &doc); err != nil {
+	doc, err := parseNode(data)
+	if err != nil {
 		return nil, err
 	}
-	// Kinds start at 1: 0 means no document (empty file or comments only).
-	if doc.Kind == 0 {
+	if doc == nil {
 		return &File{}, nil
 	}
-	if problems := checkStructure(&doc); len(problems) > 0 {
-		return nil, &ValidationError{Problems: problems}
-	}
-	if err := interpolateNode(&doc, lookup); err != nil {
+	if err := interpolateNode(doc, lookup); err != nil {
 		return nil, err
 	}
 	var f File
@@ -95,9 +126,30 @@ func Parse(data []byte, lookup LookupFunc) (*File, error) {
 	return &f, nil
 }
 
+// parseNode reads data as YAML and checks its structure. It returns nil for an empty document.
+func parseNode(data []byte) (*yaml.Node, error) {
+	var doc yaml.Node
+	if err := yaml.Unmarshal(data, &doc); err != nil {
+		return nil, err
+	}
+	// Kinds start at 1: 0 means no document (empty file or comments only).
+	if doc.Kind == 0 {
+		return nil, nil
+	}
+	if problems := checkStructure(&doc); len(problems) > 0 {
+		return nil, &ValidationError{Problems: problems}
+	}
+	return &doc, nil
+}
+
+// Root returns the project root of a config file, an absolute path: its directory, symlinks resolved.
+func Root(file string) string {
+	return hostpath.Real(filepath.Dir(file))
+}
+
 // Resolve merges the defaults into each alias and makes paths absolute.
 func (f *File) Resolve(file string) *Project {
-	root := hostpath.Real(filepath.Dir(file))
+	root := Root(file)
 	p := &Project{
 		Root:    root,
 		File:    file,

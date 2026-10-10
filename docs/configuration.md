@@ -2,7 +2,7 @@
 
 The config lives in `.dockshim.yaml` (`.dockshim.yml` also works, but not both). The directory that holds it is the project root. `install` and `config` look for it upwards from the current directory. A shim only uses the config of its own project, the one holding its `.dockshim/bin`, wherever it is called from: a link to a shim works, a copy elsewhere doesn't.
 
-Unknown keys are errors, and any command that reads the config reports all the problems at once.
+Unknown keys are errors, and commands report all the problems they find at once. `install` only checks the structure and the alias names: values don't change the shims it writes, so they are checked by `config` and by the shims when they run.
 
 ## Reference
 
@@ -71,3 +71,5 @@ aliases:
 ```
 
 A variable that is unset and has no default is an error. Use `${VAR:-}` to allow it to be empty. A variable's value never changes the structure of the YAML.
+
+Every shim reads the whole config when it runs: an unset variable fails every alias, wherever the shims run, IDEs included. Set it there, or give it a default.

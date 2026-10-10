@@ -50,9 +50,8 @@ func (f *File) Validate() error {
 	for _, name := range sortedKeys(f.Aliases) {
 		a := f.Aliases[name]
 		field := "aliases." + name
-		// Case-insensitive: on such filesystems, a shim named like the tool would shadow it and exec itself.
-		if !aliasNameRe.MatchString(name) || strings.EqualFold(name, ToolName) {
-			add(field, "invalid alias name (must be a plain file name, other than %q)", ToolName)
+		if p := aliasNameProblem(name); p != "" {
+			add(field, "%s", p)
 		}
 		if a.Service == "" {
 			add(field+".service", "is required")
@@ -82,6 +81,15 @@ func (f *File) Validate() error {
 		return &ValidationError{Problems: problems}
 	}
 	return nil
+}
+
+// aliasNameProblem says why name can't name a shim, or returns "".
+func aliasNameProblem(name string) string {
+	// Case-insensitive: on such filesystems, a shim named like the tool would shadow it and exec itself.
+	if !aliasNameRe.MatchString(name) || strings.EqualFold(name, ToolName) {
+		return fmt.Sprintf("invalid alias name (must be a plain file name, other than %q)", ToolName)
+	}
+	return ""
 }
 
 func validateUser(add func(string, string, ...any), field string, u Scalar) {

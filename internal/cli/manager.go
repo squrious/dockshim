@@ -44,13 +44,17 @@ func runManager(args []string, e *Env) int {
 	}
 }
 
-// load finds the config of a manager command, from the current directory upwards.
-func (e *Env) load() (*config.Project, error) {
+// find returns the config file of a manager command, from the current directory upwards.
+func (e *Env) find() (string, error) {
 	cwd, err := e.cwd()
 	if err != nil {
-		return nil, err
+		return "", err
 	}
-	file, err := config.Discover(cwd)
+	return config.Discover(cwd)
+}
+
+func (e *Env) load() (*config.Project, error) {
+	file, err := e.find()
 	if err != nil {
 		return nil, err
 	}
@@ -75,26 +79,34 @@ func newRoot(e *Env) *cobra.Command {
 			Short: "Create an entry point for each alias in " + config.RelBinDir + ", and remove stale ones",
 			Args:  cobra.NoArgs,
 			RunE: func(cmd *cobra.Command, args []string) error {
-				proj, err := e.load()
+				file, err := e.find()
 				if err != nil {
 					return err
 				}
+				// Shims only depend on the alias names: values, and the environment they
+				// interpolate, are left to the calls.
+				names, err := config.AliasNames(file)
+				if err != nil {
+					return err
+				}
+				rootDir := config.Root(file)
+				bin := filepath.Join(rootDir, config.RelBinDir)
 				for _, dir := range []string{config.DirName, config.RelBinDir} {
-					if err := ownedDir(filepath.Join(proj.Root, dir)); err != nil {
+					if err := ownedDir(filepath.Join(rootDir, dir)); err != nil {
 						return err
 					}
 				}
-				if err := ignoreDir(filepath.Join(proj.Root, config.DirName)); err != nil {
+				if err := ignoreDir(filepath.Join(rootDir, config.DirName)); err != nil {
 					return err
 				}
-				res, err := shim.Install(proj.BinDir(), slices.Sorted(maps.Keys(proj.Aliases)))
+				res, err := shim.Install(bin, names)
 				printList(cmd, e.OutStyle.Success("created:"), res.Created)
 				printList(cmd, e.OutStyle.Warning("removed:"), res.Removed)
 				if err != nil {
 					return err
 				}
-				if !inPath(e.Environ, proj.BinDir()) {
-					cmd.Printf("\n%s is not in PATH: add it to run the aliases by name.\n", proj.BinDir())
+				if !inPath(e.Environ, bin) {
+					cmd.Printf("\n%s is not in PATH: add it to run the aliases by name.\n", bin)
 				}
 				if !commandInPath(e.Environ, config.ToolName) {
 					e.warnf("%s is not in PATH, the shims won't find it", config.ToolName)

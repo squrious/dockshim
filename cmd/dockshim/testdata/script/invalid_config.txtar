@@ -1,4 +1,4 @@
-# Config errors are reported by any command, all at once.
+# Config errors are reported by any command that loads the config, all at once.
 ! exec dockshim config
 stderr 'invalid config:'
 stderr 'aliases.none.service: is required'

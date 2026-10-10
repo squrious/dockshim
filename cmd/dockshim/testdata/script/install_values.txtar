@@ -1,0 +1,32 @@
+# install only reads the alias names: values, and the variables they interpolate, are checked when
+# the shims run, so install works whatever the environment.
+exec dockshim install
+stdout '^created: node, php$'
+! stderr .
+! exists $FAKE_DOCKER_STATE/calls
+
+! exec .dockshim/bin/php
+stderr 'variable APP_USER_ID is not set'
+! exec dockshim config
+stderr 'variable APP_USER_ID is not set'
+
+# The structure and the alias names are still checked.
+cp unknown-key.yaml .dockshim.yaml
+! exec dockshim install
+stderr 'aliases\.php\.servce: unknown key'
+cp bad-name.yaml .dockshim.yaml
+! exec dockshim install
+stderr 'aliases\.dockshim: invalid alias name'
+
+-- .dockshim.yaml --
+defaults:
+  user: ${APP_USER_ID}
+aliases:
+  php: {service: tools}
+  node: {}
+-- unknown-key.yaml --
+aliases:
+  php: {servce: tools}
+-- bad-name.yaml --
+aliases:
+  dockshim: {service: tools}
