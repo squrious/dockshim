@@ -63,7 +63,10 @@ jobs:
           "$RUNNER_TEMP/wget/dockshim" version
       - name: With shasum
         if: runner.os == 'macOS'
+        # sha256sum can live on the read-only system volume (/sbin): drop its directories from PATH.
         run: |
-          if p=$(command -v sha256sum); then sudo rm "$p"; fi
+          while p=$(command -v sha256sum); do
+            PATH=$(printf '%s' "$PATH" | tr ':' '\n' | grep -vxF "${p%/*}" | paste -sd: -)
+          done
           DOCKSHIM_INSTALL_DIR="$RUNNER_TEMP/shasum" sh "$RUNNER_TEMP/install.sh"
           "$RUNNER_TEMP/shasum/dockshim" version
