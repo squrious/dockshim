@@ -13,11 +13,11 @@ compose:                        # passed to every docker compose call (optional)
 
 defaults:                       # inherited by every alias
   user: host                    # default: uid:gid of the caller. Or 1000, "1000:1000", www-data
-  env:
-    deny: [FOO]                 # appended to the built-in denylist
-    deny_prefixes: [MISE_]
+  env:                          # set in the container, by value
+    APP_ENV: dev
+  env_forwarding:               # host variables forwarded by name
+    deny: [FOO, MISE_*]         # appended to the built-in denylist. * matches anything
     allow: [SSH_AUTH_SOCK]      # overrides any deny
-    vars: {APP_ENV: dev}        # set in the container
   path_translation:             # see paths.md
     enabled: true
     allow: []
@@ -31,11 +31,12 @@ aliases:
     service: node
     user: 1001                  # overrides defaults
     env:
-      vars: {NODE_ENV: dev}     # merged over the defaults' vars
+      NODE_ENV: dev             # merged over the defaults' env
+    env_forwarding:
       deny: [BAZ]               # appended
 ```
 
-In an alias, scalars override `defaults`, lists are appended and `vars` are merged.
+In an alias, scalars override `defaults`, lists are appended and `env` is merged.
 
 ## Entry points
 
@@ -50,12 +51,15 @@ The scripts are generated: don't edit them, change the config and run `install` 
 ## Environment forwarding
 
 Every host variable is forwarded by name (`--env NAME`), so a secret stays out of `ps`. These are never forwarded, because their values describe the host:
-- names: `PATH HOME PWD OLDPWD TMPDIR TMP TEMP USER LOGNAME HOSTNAME SHELL SHLVL _ LS_COLORS`
-- prefixes: `COMPOSE_ DOCKER_ SSH_ XDG_ WSL BASH_FUNC_`
+`PATH HOME PWD OLDPWD TMPDIR TMP TEMP USER LOGNAME HOSTNAME SHELL SHLVL _ LS_COLORS COMPOSE_* DOCKER_* SSH_* XDG_* WSL* BASH_FUNC_*`
+
+`deny` and `allow` take names, where `*` matches any run of characters: `X_*` matches `X_` and anything after it, `'*_TOKEN'` any name ending in `_TOKEN`, `*` alone everything. `*` is always a wildcard, so a name containing one can't be matched exactly. `deny: ['*']` with an `allow` list forwards only that list.
+
+A name can hold any character but `=`. Shims are `/bin/sh` scripts, so a shell that drops names that aren't shell identifiers (dash, for example) keeps them from being forwarded; `env` is unaffected.
 
 The built-in rules, then `defaults`, then the alias add to these lists. `allow` wins over any deny.
 
-`vars` are set in the container by value (`--env NAME=value`): they override host values and bypass the deny rules, but show in `ps`. To keep a secret out of it, forward it from the host instead. `vars` affect neither docker itself nor Compose interpolation, which only see the caller's environment.
+`env` is set in the container by value (`--env NAME=value`): it overrides host values and bypasses the deny rules, but shows in `ps`. To keep a secret out of it, forward it from the host instead. `env` affects neither docker itself nor Compose interpolation, which only see the caller's environment.
 
 ## Interpolation
 
@@ -68,8 +72,7 @@ aliases:
   php:
     service: ${PHP_SERVICE:?set PHP_SERVICE}   # custom error (${VAR?msg}: when unset only)
     env:
-      vars:
-        PS1: $$ ${USER}         # $$ is a literal $
+      PS1: $$ ${USER}           # $$ is a literal $
 ```
 
 A variable that is unset and has no default is an error. Use `${VAR:-}` to allow it to be empty. A variable's value never changes the structure of the YAML.

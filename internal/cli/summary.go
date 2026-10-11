@@ -39,6 +39,7 @@ func printSummary(w io.Writer, s style.Style, p *config.Project, infer func(*con
 		t.row("  ", "user", a.User)
 		t.row("  ", "path_mapping", mappingLines(s, p.Root, a, infer)...)
 		t.row("  ", "env", envLines(a)...)
+		t.row("  ", "env_forwarding", forwardingLines(a)...)
 		t.row("  ", "path_translation", translationLines(s, a.PathTranslation)...)
 		t.flush()
 	}
@@ -120,19 +121,25 @@ func pairLines(root string, m pathmap.Map) []string {
 	return lines
 }
 
-// envLines lists what the config adds to the built-in rules. Var values are left out: they may
-// come from the environment.
+// envLines lists the names of the variables the config sets. Values are left out: they may come
+// from the environment.
 func envLines(a *config.ResolvedAlias) []string {
+	if len(a.Env) == 0 {
+		return nil
+	}
+	return []string{strings.Join(slices.Sorted(maps.Keys(a.Env)), ", ")}
+}
+
+// forwardingLines lists what the config adds to the built-in rules.
+func forwardingLines(a *config.ResolvedAlias) []string {
 	var lines []string
 	add := func(label string, items []string) {
 		if len(items) > 0 {
 			lines = append(lines, label+" "+strings.Join(items, ", "))
 		}
 	}
-	add("allow", a.Env.Allow)
-	add("deny", without(a.Env.Deny, envfilter.DefaultDeny))
-	add("deny_prefixes", without(a.Env.DenyPrefixes, envfilter.DefaultDenyPrefixes))
-	add("vars", slices.Sorted(maps.Keys(a.Vars)))
+	add("allow", a.EnvForwarding.Allow)
+	add("deny", without(a.EnvForwarding.Deny, envfilter.DefaultDeny))
 	return lines
 }
 

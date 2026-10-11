@@ -31,10 +31,9 @@ aliases:
   php:
     service: ${SVC}
     env:
-      vars:
-        GREETING: hello $SVC
-        LITERAL: $$HOME
-        MODE: ${MODE_OVERRIDE:-dev}
+      GREETING: hello $SVC
+      LITERAL: $$HOME
+      MODE: ${MODE_OVERRIDE:-dev}
 -- required/.dockshim.yaml --
 aliases:
   php:

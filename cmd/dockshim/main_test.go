@@ -70,7 +70,7 @@ case "$sub" in
     printf '%s\n' "dir $PWD"
     while [ $# -gt 0 ]; do
       case "$1" in
-        --env) case "$2" in *=*) printf '%s\n' "env $2";; *) eval "v=\${$2-<unset>}"; printf '%s\n' "env $2=$v";; esac; shift 2;;
+        --env) case "$2" in *=*) printf '%s\n' "env $2";; *) v=$(/usr/bin/printenv -- "$2") || v="<unset>"; printf '%s\n' "env $2=$v";; esac; shift 2;;
         --user|--workdir) printf '%s\n' "$1 $2"; shift 2;;
         -T|--interactive|--tty) printf '%s\n' "flag $1"; shift;;
         *) break;;

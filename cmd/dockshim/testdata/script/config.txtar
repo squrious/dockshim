@@ -14,19 +14,18 @@ defaults:
   user: 1000
   path_translation:
     allow: [/data]
-  env:
-    deny: [FOO]
-    vars: {A: defaults}
+  env: {A: defaults}
+  env_forwarding:
+    deny: [FOO, MISE_*]
 aliases:
   php:
     service: tools
     path_mapping: {.: /app, assets: /assets/build}
-    env:
-      vars: {A: alias}
+    env: {A: alias}
   node:
     service: node
     user: "33:33"
-    env:
+    env_forwarding:
       allow: [SSH_AUTH_SOCK]
     path_translation:
       enabled: false
@@ -40,9 +39,9 @@ node
   service           node
   user              33:33
   path_mapping      inferred from the container's bind mounts
-  env               allow SSH_AUTH_SOCK
-                    deny FOO
-                    vars A
+  env               A
+  env_forwarding    allow SSH_AUTH_SOCK
+                    deny FOO, MISE_*
   path_translation  disabled
 
 php
@@ -50,6 +49,6 @@ php
   user              1000
   path_mapping      . → /app
                     assets → /assets/build
-  env               deny FOO
-                    vars A
+  env               A
+  env_forwarding    deny FOO, MISE_*
   path_translation  allow /data

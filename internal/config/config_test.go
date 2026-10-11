@@ -196,7 +196,7 @@ func TestValidate(t *testing.T) {
 		want []string // substrings of problems, in order
 	}{
 		{"valid", `
-defaults: {user: "1000:1000", env: {deny: [A], deny_prefixes: [B_], allow: [C], vars: {D: 1}}}
+defaults: {user: "1000:1000", env: {D: 1}, env_forwarding: {deny: [A, B_*, "*"], allow: [C, AWS_*]}}
 aliases:
   php: {service: tools, path_mapping: {.: /app, ./lib: /lib}, user: host}
   node: {service: node, user: www-data}
@@ -220,13 +220,13 @@ aliases:
 			`aliases.php.path_mapping[lib]: container path "rel" must be absolute`,
 		}},
 		{"env and user", `
-defaults: {user: "a b", env: {deny: [1X], vars: {"B-C": x}}}
-aliases: {php: {service: a, env: {deny_prefixes: [""]}}}
+defaults: {user: "a b", env: {"B=C": x, "B-C": ok}, env_forwarding: {deny: [1X, "A=B", "*_TOKEN"]}}
+aliases: {php: {service: a, env_forwarding: {allow: [""], deny: ["A*B"]}}}
 `, []string{
 			`defaults.user: invalid user "a b"`,
-			`defaults.env.deny[0]: invalid variable name "1X"`,
-			`defaults.env.vars: invalid variable name "B-C"`,
-			`aliases.php.env.deny_prefixes[0]: invalid variable name ""`,
+			`defaults.env: invalid variable name "B=C"`,
+			`defaults.env_forwarding.deny[1]: invalid variable name "A=B"`,
+			`aliases.php.env_forwarding.allow[0]: invalid variable name ""`,
 		}},
 		{"path translation", `
 defaults: {path_translation: {enabled: maybe, allow: [rel]}}
@@ -273,41 +273,42 @@ func TestParseStructure(t *testing.T) {
 	}{
 		{"empty", "", nil},
 		{"comments only", "# nothing\n", nil},
-		{"nulls", "compose:\ndefaults: {user: ~}\naliases: {php: {service: a, env: {vars: {A: null}}}}", nil},
+		{"nulls", "compose:\ndefaults: {user: ~}\naliases: {php: {service: a, env: {A: null}}}", nil},
 		{"merge keys", `
 aliases:
   php: &php {service: a, user: "1"}
   node: {<<: *php, user: "2"}
-  js: {<<: [*php], env: {vars: {<<: {A: b}}}}
+  js: {<<: [*php], env: {<<: {A: b}}}
 `, nil},
 		{"unknown keys", `
 global: 1
 aliases:
-  php: {servce: a, env: {forward: [A]}}
+  php: {servce: a, env_forwarding: {forward: [A]}}
 `, []string{
 			`global: unknown key, expected one of compose, defaults, aliases (line 2)`,
-			`aliases.php.servce: unknown key, expected one of service, path_mapping, user, env, path_translation (line 4)`,
-			`aliases.php.env.forward: unknown key, expected one of deny, deny_prefixes, allow, vars (line 4)`,
+			`aliases.php.servce: unknown key, expected one of service, path_mapping, user, env, env_forwarding, path_translation (line 4)`,
+			`aliases.php.env_forwarding.forward: unknown key, expected one of deny, allow (line 4)`,
 		}},
 		{"unknown key in merged mapping", `
 aliases:
   php: &php {service: a, servce: b}
   node: {<<: *php}
 `, []string{
-			`aliases.php.servce: unknown key, expected one of service, path_mapping, user, env, path_translation (line 3)`,
-			`aliases.node.servce: unknown key, expected one of service, path_mapping, user, env, path_translation (line 3)`,
+			`aliases.php.servce: unknown key, expected one of service, path_mapping, user, env, env_forwarding, path_translation (line 3)`,
+			`aliases.node.servce: unknown key, expected one of service, path_mapping, user, env, env_forwarding, path_translation (line 3)`,
 		}},
 		{"wrong kinds", `
 compose: {files: a.yaml}
-defaults: {user: [1], env: {vars: {A: {b: c}, ? [B] : x}}}
+defaults: {user: [1], env: {A: {b: c}, ? [B] : x}, env_forwarding: {deny: A}}
 aliases:
   php: {service: a, path_mapping: {.: [x]}, path_translation: {allow: [[x]]}}
   node: []
 `, []string{
 			`compose.files: expected a list, got "a.yaml" (line 2)`,
 			`defaults.user: expected a single value, got a list (line 3)`,
-			`defaults.env.vars[A]: expected a single value, got a mapping (line 3)`,
-			`defaults.env.vars: expected a single value as key, got a list (line 3)`,
+			`defaults.env[A]: expected a single value, got a mapping (line 3)`,
+			`defaults.env: expected a single value as key, got a list (line 3)`,
+			`defaults.env_forwarding.deny: expected a list, got "A" (line 3)`,
 			`aliases.php.path_mapping[.]: expected a single value, got a list (line 5)`,
 			`aliases.php.path_translation.allow[0]: expected a single value, got a list (line 5)`,
 			`aliases.node: expected a mapping, got a list (line 6)`,
@@ -358,10 +359,9 @@ func TestResolve(t *testing.T) {
 compose: {files: [docker/compose.yaml], project_name: proj}
 defaults:
   user: 1000
-  env:
-    deny: [FOO]
-    deny_prefixes: [MISE_]
-    vars: {SOME_VAR: defaults, ONLY_DEFAULTS: true}
+  env: {SOME_VAR: defaults, ONLY_DEFAULTS: true}
+  env_forwarding:
+    deny: [FOO, MISE_*]
 aliases:
   php:
     service: tools
@@ -375,8 +375,8 @@ aliases:
     service: node
     path_mapping: {assets: /assets/build, ./lib: /app/lib}
     user: 1001
-    env:
-      vars: {NODE_ENV: dev, SOME_VAR: alias}
+    env: {NODE_ENV: dev, SOME_VAR: alias}
+    env_forwarding:
       deny: [BAZ]
       allow: [SSH_AUTH_SOCK]
 `)
@@ -411,15 +411,15 @@ aliases:
 	if !slices.Equal(node.PathMapping, wantNodeMap) {
 		t.Errorf("node mapping = %v", node.PathMapping)
 	}
-	if php.Vars["SOME_VAR"] != "defaults" || node.Vars["SOME_VAR"] != "alias" || node.Vars["ONLY_DEFAULTS"] != "true" || node.Vars["NODE_ENV"] != "dev" {
-		t.Errorf("vars: php=%v node=%v", php.Vars, node.Vars)
+	if php.Env["SOME_VAR"] != "defaults" || node.Env["SOME_VAR"] != "alias" || node.Env["ONLY_DEFAULTS"] != "true" || node.Env["NODE_ENV"] != "dev" {
+		t.Errorf("env: php=%v node=%v", php.Env, node.Env)
 	}
-	wantDeny := append(slices.Clone(envfilter.DefaultDeny), "FOO", "BAZ")
-	if !slices.Equal(node.Env.Deny, wantDeny) || !slices.Equal(node.Env.Allow, []string{"SSH_AUTH_SOCK"}) {
-		t.Errorf("node env = %+v", node.Env)
+	wantDeny := append(slices.Clone(envfilter.DefaultDeny), "FOO", "MISE_*", "BAZ")
+	if !slices.Equal(node.EnvForwarding.Deny, wantDeny) || !slices.Equal(node.EnvForwarding.Allow, []string{"SSH_AUTH_SOCK"}) {
+		t.Errorf("node env_forwarding = %+v", node.EnvForwarding)
 	}
-	if !slices.Contains(php.Env.DenyPrefixes, "MISE_") || slices.Contains(php.Env.Deny, "BAZ") {
-		t.Errorf("php env = %+v", php.Env)
+	if !slices.Contains(php.EnvForwarding.Deny, "MISE_*") || slices.Contains(php.EnvForwarding.Deny, "BAZ") {
+		t.Errorf("php env_forwarding = %+v", php.EnvForwarding)
 	}
 }
 

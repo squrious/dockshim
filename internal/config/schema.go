@@ -22,9 +22,10 @@ type Compose struct {
 
 // Defaults holds the settings every alias inherits.
 type Defaults struct {
-	User            Scalar          `yaml:"user"`
-	Env             Env             `yaml:"env"`
-	PathTranslation PathTranslation `yaml:"path_translation"`
+	User            Scalar            `yaml:"user"`
+	Env             map[string]Scalar `yaml:"env"`
+	EnvForwarding   EnvForwarding     `yaml:"env_forwarding"`
+	PathTranslation PathTranslation   `yaml:"path_translation"`
 }
 
 // PathTranslation configures how host paths given as arguments are made usable in the container.
@@ -33,12 +34,11 @@ type PathTranslation struct {
 	Allow   []string `yaml:"allow"`
 }
 
-// Env configures which host variables are forwarded, and which are set.
-type Env struct {
-	Deny         []string          `yaml:"deny"`
-	DenyPrefixes []string          `yaml:"deny_prefixes"`
-	Allow        []string          `yaml:"allow"`
-	Vars         map[string]Scalar `yaml:"vars"`
+// EnvForwarding configures which host variables are forwarded. In items, * matches any run of
+// characters.
+type EnvForwarding struct {
+	Deny  []string `yaml:"deny"`
+	Allow []string `yaml:"allow"`
 }
 
 // Alias is one entry point. Its settings override or extend Defaults.
@@ -46,7 +46,8 @@ type Alias struct {
 	Service         string            `yaml:"service"`
 	PathMapping     map[string]string `yaml:"path_mapping"` // nil: inferred from the container's bind mounts
 	User            Scalar            `yaml:"user"`
-	Env             Env               `yaml:"env"`
+	Env             map[string]Scalar `yaml:"env"`
+	EnvForwarding   EnvForwarding     `yaml:"env_forwarding"`
 	PathTranslation PathTranslation   `yaml:"path_translation"`
 }
 

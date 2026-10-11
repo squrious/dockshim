@@ -82,7 +82,7 @@ func Run(in Input, stdio Stdio) (int, error) {
 }
 
 // Build computes the docker exec call for in: host paths in the arguments are translated,
-// forwarded variables are passed by name and alias vars by value, and the working directory is
+// forwarded variables are passed by name and alias env by value, and the working directory is
 // mapped. Docker runs with the caller's environment, unchanged.
 // It uses the alias path mappings as they are: Run infers them first when needed.
 func Build(in Input) (*Plan, error) {
@@ -112,16 +112,16 @@ func Build(in Input) (*Plan, error) {
 	return p, nil
 }
 
-// envArgs returns the names of the host variables exec forwards, and the alias vars it sets, as
-// sorted NAME=value entries. A var wins over a forwarded variable of the same name.
+// envArgs returns the names of the host variables exec forwards, and the alias env it sets, as
+// sorted NAME=value entries. An env entry wins over a forwarded variable of the same name.
 func envArgs(in Input) (names, set []string) {
-	for _, n := range in.Alias.Env.Names(in.Environ) {
-		if _, ok := in.Alias.Vars[n]; !ok {
+	for _, n := range in.Alias.EnvForwarding.Names(in.Environ) {
+		if _, ok := in.Alias.Env[n]; !ok {
 			names = append(names, n)
 		}
 	}
-	for _, k := range slices.Sorted(maps.Keys(in.Alias.Vars)) {
-		set = append(set, k+"="+in.Alias.Vars[k])
+	for _, k := range slices.Sorted(maps.Keys(in.Alias.Env)) {
+		set = append(set, k+"="+in.Alias.Env[k])
 	}
 	return names, set
 }

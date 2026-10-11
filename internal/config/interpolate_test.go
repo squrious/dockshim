@@ -67,11 +67,11 @@ func TestParseInterpolates(t *testing.T) {
 defaults:
   user: ${UID}
   env:
+    TRICKY: $TRICKY
+    LITERAL: $$HOME
+    NUM: 42
+  env_forwarding:
     deny: [$UID]
-    vars:
-      TRICKY: $TRICKY
-      LITERAL: $$HOME
-      NUM: 42
 aliases:
   php:
     service: ${SVC}
@@ -83,10 +83,10 @@ aliases:
 	}
 	php := f.Aliases["php"]
 	switch {
-	case f.Defaults.User != "1000", f.Defaults.Env.Deny[0] != "1000":
+	case f.Defaults.User != "1000", f.Defaults.EnvForwarding.Deny[0] != "1000":
 		t.Errorf("defaults = %+v", f.Defaults)
-	case f.Defaults.Env.Vars["TRICKY"] != "a: [b", f.Defaults.Env.Vars["LITERAL"] != "$HOME", f.Defaults.Env.Vars["NUM"] != "42":
-		t.Errorf("vars = %v", f.Defaults.Env.Vars)
+	case f.Defaults.Env["TRICKY"] != "a: [b", f.Defaults.Env["LITERAL"] != "$HOME", f.Defaults.Env["NUM"] != "42":
+		t.Errorf("env = %v", f.Defaults.Env)
 	case php.Service != "tools", php.PathMapping["${DIR}"] != "/app/src":
 		t.Errorf("php = %+v", php)
 	}

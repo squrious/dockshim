@@ -16,11 +16,11 @@ import (
 
 func alias() *config.ResolvedAlias {
 	return &config.ResolvedAlias{
-		Service:     "tools",
-		User:        "1000:1000",
-		PathMapping: pathmap.Map{{Host: "/proj", Container: "/app"}},
-		Env:         envfilter.Rules{Deny: []string{"HOME", "SECRET"}},
-		Vars:        map[string]string{"SECRET": "v", "APP_ENV": "dev"},
+		Service:       "tools",
+		User:          "1000:1000",
+		PathMapping:   pathmap.Map{{Host: "/proj", Container: "/app"}},
+		EnvForwarding: envfilter.Rules{Deny: []string{"HOME", "SECRET"}},
+		Env:           map[string]string{"SECRET": "v", "APP_ENV": "dev"},
 	}
 }
 
@@ -59,21 +59,21 @@ func TestBuildEnv(t *testing.T) {
 	tests := []struct {
 		name    string
 		deny    []string
-		vars    map[string]string
+		env     map[string]string
 		environ []string
 		want    string // the --env flags
 	}{
-		{name: "no vars", environ: []string{"FOO=1", "BAR=2"}, want: "--env FOO --env BAR"},
-		{name: "var on a forwarded name is sent by value only", vars: map[string]string{"FOO": "v"},
+		{name: "no env", environ: []string{"FOO=1", "BAR=2"}, want: "--env FOO --env BAR"},
+		{name: "env on a forwarded name is sent by value only", env: map[string]string{"FOO": "v"},
 			environ: []string{"FOO=1", "BAR=2"}, want: "--env BAR --env FOO=v"},
-		{name: "var on a denied name", deny: []string{"HOME"}, vars: map[string]string{"HOME": "/home/app"},
+		{name: "env on a denied name", deny: []string{"HOME"}, env: map[string]string{"HOME": "/home/app"},
 			environ: []string{"HOME=/h"}, want: "--env HOME=/home/app"},
-		{name: "vars are sorted", vars: map[string]string{"B": "2", "A": "1"}, want: "--env A=1 --env B=2"},
+		{name: "env is sorted", env: map[string]string{"B": "2", "A": "1"}, want: "--env A=1 --env B=2"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			a := alias()
-			a.Env, a.Vars = envfilter.Rules{Deny: tt.deny}, tt.vars
+			a.EnvForwarding, a.Env = envfilter.Rules{Deny: tt.deny}, tt.env
 			p, err := Build(Input{Project: &config.Project{Root: "/proj"}, Alias: a, Cwd: "/proj", Environ: tt.environ, Args: []string{"php"}})
 			if err != nil {
 				t.Fatal(err)

@@ -29,7 +29,7 @@ type Project struct {
 func (p *Project) BinDir() string { return filepath.Join(p.Root, RelBinDir) }
 
 // ResolvedAlias is an alias with the defaults merged in: users are uid:gid or names, path
-// mappings are absolute, and Env includes the built-in denylist.
+// mappings are absolute, and EnvForwarding includes the built-in denylist.
 type ResolvedAlias struct {
 	Service string
 	User    string
@@ -37,8 +37,8 @@ type ResolvedAlias struct {
 	// the container's bind mounts at run time (ADR 0008).
 	InferPathMapping bool
 	PathMapping      pathmap.Map
-	Env              envfilter.Rules
-	Vars             map[string]string
+	Env              map[string]string
+	EnvForwarding    envfilter.Rules
 	PathTranslation  ResolvedPathTranslation
 }
 
@@ -169,20 +169,19 @@ func (f *File) Resolve(file string) *Project {
 			User:             resolveUser(string(cmp.Or(a.User, f.Defaults.User, UserHost))),
 			InferPathMapping: a.PathMapping == nil,
 			PathMapping:      pathmap.Map{},
-			Env: envfilter.Rules{
-				Deny:         concat(envfilter.DefaultDeny, f.Defaults.Env.Deny, a.Env.Deny),
-				DenyPrefixes: concat(envfilter.DefaultDenyPrefixes, f.Defaults.Env.DenyPrefixes, a.Env.DenyPrefixes),
-				Allow:        concat(f.Defaults.Env.Allow, a.Env.Allow),
+			Env:              map[string]string{},
+			EnvForwarding: envfilter.Rules{
+				Deny:  concat(envfilter.DefaultDeny, f.Defaults.EnvForwarding.Deny, a.EnvForwarding.Deny),
+				Allow: concat(f.Defaults.EnvForwarding.Allow, a.EnvForwarding.Allow),
 			},
-			Vars: map[string]string{},
 			PathTranslation: ResolvedPathTranslation{
 				Enabled: cmp.Or(a.PathTranslation.Enabled, f.Defaults.PathTranslation.Enabled, "true").Bool(),
 				Allow:   cleanAll(concat(f.Defaults.PathTranslation.Allow, a.PathTranslation.Allow)),
 			},
 		}
-		for _, vars := range []map[string]Scalar{f.Defaults.Env.Vars, a.Env.Vars} {
-			for k, v := range vars {
-				r.Vars[k] = string(v)
+		for _, env := range []map[string]Scalar{f.Defaults.Env, a.Env} {
+			for k, v := range env {
+				r.Env[k] = string(v)
 			}
 		}
 		for _, host := range sortedKeys(a.PathMapping) {

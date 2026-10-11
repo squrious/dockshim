@@ -1,4 +1,4 @@
-# Alias vars go to the container by value, and never reach docker's own environment.
+# Alias env goes to the container by value, and never reaches docker's own environment.
 exec dockshim install
 env HOME=/home/caller FOO=host
 exec .dockshim/bin/php
@@ -6,7 +6,7 @@ stdout '^env HOME=/home/app$'
 stdout '^env PATH=/container/bin$'
 stdout '^env DOCKER_HOST=tcp://dind:2375$'
 
-# A var on a forwarded name is sent by value only, never also by name.
+# An env entry on a forwarded name is sent by value only, never also by name.
 stdout '^env FOO=x$'
 ! stdout 'FOO=host'
 
@@ -20,9 +20,26 @@ exec sh -c 'grep -Fx "PATH=$PATH" "$FAKE_DOCKER_STATE/exec-env"'
 ! grep '^DOCKER_HOST=' $FAKE_DOCKER_STATE/up-env
 ! grep '^DOCKER_HOST=' $FAKE_DOCKER_STATE/exec-env
 
+# * matches anywhere in a name. Names need not be shell identifiers. dash, as /bin/sh, drops them
+# from the environment, so this runs without the shim. The fake docker is a /bin/sh script too and
+# can't echo A.B, so the docker call is checked.
+env GITHUB_TOKEN=t A.B=dot
+exec dockshim run --shim $WORK/.dockshim/bin/php php
+! stdout 'GITHUB_TOKEN'
+grep ' --env A\.B ' $FAKE_DOCKER_STATE/calls
+
+# Denying everything makes an allowlist.
+env KEEP_ME=1 DROP_ME=2
+exec .dockshim/bin/strict
+stdout '^env KEEP_ME=1$'
+! stdout 'DROP_ME'
+
 -- .dockshim.yaml --
 aliases:
   php:
     service: tools
-    env:
-      vars: {HOME: /home/app, PATH: /container/bin, DOCKER_HOST: 'tcp://dind:2375', FOO: x}
+    env: {HOME: /home/app, PATH: /container/bin, DOCKER_HOST: 'tcp://dind:2375', FOO: x}
+    env_forwarding: {deny: ['*_TOKEN']}
+  strict:
+    service: tools
+    env_forwarding: {deny: ['*'], allow: [KEEP_*]}

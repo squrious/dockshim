@@ -10,17 +10,16 @@
 # Settings every alias inherits.
 # defaults:
 #   user: host                  # uid:gid running dockshim. Or uid[:gid], name[:group]
-#   env:                        # https://github.com/squrious/dockshim/blob/main/docs/configuration.md#environment-forwarding
-#     deny: []                  # appended to the built-in denylist
-#     deny_prefixes: []
+#   env: {}                     # set in the container, by value. An alias's env merges over it
+#   env_forwarding:             # https://github.com/squrious/dockshim/blob/main/docs/configuration.md#environment-forwarding
+#     deny: []                  # host variables not forwarded, appended to the built-in ones. NAME or a pattern: * matches anything
 #     allow: []                 # always forwarded, even if denied
-#     vars: {}                  # set in the container
 #   path_translation:           # https://github.com/squrious/dockshim/blob/main/docs/paths.md#path-translation
 #     enabled: true
 #     allow: []                 # directories whose files may be copied, on top of the system temporary ones
 
 # Each alias runs the command of the same name in a compose service.
-# It can also set user, env and path_translation (scalars override defaults, lists append, vars merge),
+# It can also set user, env, env_forwarding and path_translation (scalars override defaults, lists append, maps merge),
 # and path_mapping (e.g. {.: /app}), otherwise inferred from the container's bind mounts.
 aliases:
   # Example, not a default:

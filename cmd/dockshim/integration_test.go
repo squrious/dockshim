@@ -32,9 +32,9 @@ func docker(t *testing.T, dir string, args ...string) string {
 // baseConfig is the defaults section shared by the suite.
 const baseConfig = `
 defaults:
-  env:
+  env: {FROM_CONFIG: configured, HOME: /home/it}
+  env_forwarding:
     deny: [HIDDEN]
-    vars: {FROM_CONFIG: configured, HOME: /home/it}
 `
 
 // project writes the config, installs the shims and returns the project root.

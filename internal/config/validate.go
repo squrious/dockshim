@@ -44,7 +44,7 @@ func (f *File) Validate() error {
 		}
 	}
 	validateUser(add, "defaults.user", f.Defaults.User)
-	validateEnv(add, "defaults.env", f.Defaults.Env)
+	validateEnv(add, "defaults", f.Defaults.Env, f.Defaults.EnvForwarding)
 	validatePathTranslation(add, "defaults.path_translation", f.Defaults.PathTranslation)
 
 	for _, name := range sortedKeys(f.Aliases) {
@@ -74,7 +74,7 @@ func (f *File) Validate() error {
 			}
 		}
 		validateUser(add, field+".user", a.User)
-		validateEnv(add, field+".env", a.Env)
+		validateEnv(add, field, a.Env, a.EnvForwarding)
 		validatePathTranslation(add, field+".path_translation", a.PathTranslation)
 	}
 	if len(problems) > 0 {
@@ -98,20 +98,20 @@ func validateUser(add func(string, string, ...any), field string, u Scalar) {
 	}
 }
 
-func validateEnv(add func(string, string, ...any), field string, e Env) {
+func validateEnv(add func(string, string, ...any), field string, env map[string]Scalar, fwd EnvForwarding) {
+	for _, n := range sortedKeys(env) {
+		if !envfilter.ValidName(n) {
+			add(field+".env", "invalid variable name %q", n)
+		}
+	}
 	for _, list := range []struct {
 		name  string
 		items []string
-	}{{"deny", e.Deny}, {"deny_prefixes", e.DenyPrefixes}, {"allow", e.Allow}} {
+	}{{"deny", fwd.Deny}, {"allow", fwd.Allow}} {
 		for i, n := range list.items {
 			if !envfilter.ValidName(n) {
-				add(fmt.Sprintf("%s.%s[%d]", field, list.name, i), "invalid variable name %q", n)
+				add(fmt.Sprintf("%s.env_forwarding.%s[%d]", field, list.name, i), "invalid variable name %q", n)
 			}
-		}
-	}
-	for _, n := range sortedKeys(e.Vars) {
-		if !envfilter.ValidName(n) {
-			add(field+".vars", "invalid variable name %q", n)
 		}
 	}
 }

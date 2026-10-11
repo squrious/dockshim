@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/squrious/dockshim/internal/config"
+	"github.com/squrious/dockshim/internal/envfilter"
 	"github.com/squrious/dockshim/internal/pathmap"
 	"github.com/squrious/dockshim/internal/style"
 )
@@ -34,6 +35,31 @@ func TestMappingLines(t *testing.T) {
 			got := mappingLines(style.Style{}, "/proj", tt.alias, func(*config.ResolvedAlias) *inference { return tt.inf })
 			if !slices.Equal(got, tt.want) {
 				t.Fatalf("got %q", got)
+			}
+		})
+	}
+}
+
+func TestEnvLines(t *testing.T) {
+	tests := []struct {
+		name  string
+		alias *config.ResolvedAlias
+		env   []string
+		fwd   []string
+	}{
+		{"none", &config.ResolvedAlias{EnvForwarding: envfilter.Rules{Deny: envfilter.DefaultDeny}}, nil, nil},
+		{"all", &config.ResolvedAlias{
+			Env:           map[string]string{"B": "secret", "A": "1"},
+			EnvForwarding: envfilter.Rules{Deny: append(slices.Clone(envfilter.DefaultDeny), "FOO", "MISE_*"), Allow: []string{"SSH_AUTH_SOCK"}},
+		}, []string{"A, B"}, []string{"allow SSH_AUTH_SOCK", "deny FOO, MISE_*"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := envLines(tt.alias); !slices.Equal(got, tt.env) {
+				t.Errorf("env = %q, want %q", got, tt.env)
+			}
+			if got := forwardingLines(tt.alias); !slices.Equal(got, tt.fwd) {
+				t.Errorf("env_forwarding = %q, want %q", got, tt.fwd)
 			}
 		})
 	}

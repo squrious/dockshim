@@ -22,7 +22,7 @@ stdout '^cmd php -r echo 1;$'
 # The service was down, so it has been started.
 grep '^compose ps --status running --quiet tools$' $FAKE_DOCKER_STATE/calls
 grep '^compose up --detach tools$' $FAKE_DOCKER_STATE/calls
-# With the caller's environment, as exec, so compose interpolates the project identically. Alias vars stay out.
+# With the caller's environment, as exec, so compose interpolates the project identically. Alias env stays out.
 ! grep '^APP_ENV=' $FAKE_DOCKER_STATE/up-env
 grep '^COMPOSE_PROGRESS=quiet$' $FAKE_DOCKER_STATE/up-env
 
@@ -39,11 +39,11 @@ stdout '^hello from stdin$'
 -- .dockshim.yaml --
 defaults:
   env:
+    APP_ENV: test
+    GREETING: defaults
+  env_forwarding:
     deny: [HIDDEN]
     allow: [SSH_AUTH_SOCK]
-    vars:
-      APP_ENV: test
-      GREETING: defaults
 aliases:
   php:
     service: tools
@@ -51,8 +51,7 @@ aliases:
       .: /app
       assets: /assets/build
     env:
-      vars:
-        GREETING: from alias
+      GREETING: from alias
   cat:
     service: tools
 -- src/sub/.keep --
