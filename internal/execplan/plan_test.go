@@ -37,12 +37,12 @@ func TestBuild(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []string{"compose", "exec", "-T", "--env", "FOO", "--env", "APP_ENV", "--env", "SECRET",
+	want := []string{"compose", "exec", "-T", "--env", "FOO", "--env", "APP_ENV=dev", "--env", "SECRET=v",
 		"--user", "1000:1000", "--workdir", "/app/src", "tools", "php", "-r", "echo 1;"}
 	if !slices.Equal(p.Args, want) {
 		t.Fatalf("args = %q", p.Args)
 	}
-	if !slices.Equal(p.Env, []string{"HOME=/h", "FOO=1", "APP_ENV=dev", "SECRET=v"}) {
+	if !slices.Equal(p.Env, in.Environ) {
 		t.Fatalf("env = %q", p.Env)
 	}
 
@@ -52,6 +52,39 @@ func TestBuild(t *testing.T) {
 	}
 	if slices.Contains(p.Args, "--workdir") {
 		t.Fatalf("no workdir expected outside mappings: %q", p.Args)
+	}
+}
+
+func TestBuildEnv(t *testing.T) {
+	tests := []struct {
+		name    string
+		deny    []string
+		vars    map[string]string
+		environ []string
+		want    string // the --env flags
+	}{
+		{name: "no vars", environ: []string{"FOO=1", "BAR=2"}, want: "--env FOO --env BAR"},
+		{name: "var on a forwarded name is sent by value only", vars: map[string]string{"FOO": "v"},
+			environ: []string{"FOO=1", "BAR=2"}, want: "--env BAR --env FOO=v"},
+		{name: "var on a denied name", deny: []string{"HOME"}, vars: map[string]string{"HOME": "/home/app"},
+			environ: []string{"HOME=/h"}, want: "--env HOME=/home/app"},
+		{name: "vars are sorted", vars: map[string]string{"B": "2", "A": "1"}, want: "--env A=1 --env B=2"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			a := alias()
+			a.Env, a.Vars = envfilter.Rules{Deny: tt.deny}, tt.vars
+			p, err := Build(Input{Project: &config.Project{Root: "/proj"}, Alias: a, Cwd: "/proj", Environ: tt.environ, Args: []string{"php"}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := strings.Join(p.Args, " "); !strings.Contains(got, "-T "+tt.want+" --user") {
+				t.Fatalf("args = %s, want %s", got, tt.want)
+			}
+			if !slices.Equal(p.Env, tt.environ) {
+				t.Fatalf("env = %q, want the caller's %q", p.Env, tt.environ)
+			}
+		})
 	}
 }
 
@@ -207,8 +240,8 @@ func TestRun(t *testing.T) {
 			if tt.args != "" && !strings.Contains(strings.Join(runner.args, " "), tt.args) {
 				t.Fatalf("args = %q, want %q", runner.args, tt.args)
 			}
-			// Starting sees the same environment as the command, so compose interpolates the project identically.
-			if target.upEnv != nil && !slices.Equal(target.upEnv, []string{"FOO=1", "APP_ENV=dev", "SECRET=v"}) {
+			// Starting sees the caller's environment, as the command does, so compose interpolates the project identically.
+			if target.upEnv != nil && !slices.Equal(target.upEnv, []string{"FOO=1"}) {
 				t.Fatalf("up env = %q", target.upEnv)
 			}
 		})

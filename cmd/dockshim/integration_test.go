@@ -34,7 +34,7 @@ const baseConfig = `
 defaults:
   env:
     deny: [HIDDEN]
-    vars: {FROM_CONFIG: configured}
+    vars: {FROM_CONFIG: configured, HOME: /home/it}
 `
 
 // project writes the config, installs the shims and returns the project root.
@@ -124,7 +124,7 @@ func commonChecks(t *testing.T, root string, stop func()) {
 	})
 	t.Run("env", func(t *testing.T) {
 		env := []string{"DOCKSHIM_IT=forwarded", "HIDDEN=x"}
-		expect(t, shim(t, root, sub, "", env, "sh", "-c", `echo "$DOCKSHIM_IT $FROM_CONFIG ${HIDDEN:-none} $HOME"`), "forwarded configured none /", 0)
+		expect(t, shim(t, root, sub, "", env, "sh", "-c", `echo "$DOCKSHIM_IT $FROM_CONFIG ${HIDDEN:-none} $HOME"`), "forwarded configured none /home/it", 0)
 	})
 	t.Run("user defaults to host", func(t *testing.T) {
 		expect(t, shim(t, root, sub, "", nil, "sh", "-c", `echo "$(id -u):$(id -g)"`), hostUser, 0)

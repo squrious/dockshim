@@ -59,9 +59,8 @@ func Run(in Input, stdio Stdio) (int, error) {
 		in.Target = NewTarget(in.Project, in.Alias.Service, in.Runner)
 	}
 	if !in.Target.IsRunning() {
-		// The exec environment, so that compose interpolates the project as it will for the exec.
-		env, _ := environment(in)
-		if err := in.Target.EnsureUp(env, stdio.Err); err != nil {
+		// The caller's environment, so that compose interpolates the project as it will for the exec.
+		if err := in.Target.EnsureUp(in.Environ, stdio.Err); err != nil {
 			return 1, fmt.Errorf("starting %s: %w", in.Target, err)
 		}
 	}
@@ -83,7 +82,8 @@ func Run(in Input, stdio Stdio) (int, error) {
 }
 
 // Build computes the docker exec call for in: host paths in the arguments are translated,
-// forwarded variables and alias vars are passed by name, and the working directory is mapped.
+// forwarded variables are passed by name and alias vars by value, and the working directory is
+// mapped. Docker runs with the caller's environment, unchanged.
 // It uses the alias path mappings as they are: Run infers them first when needed.
 func Build(in Input) (*Plan, error) {
 	if in.Target == nil {
@@ -100,29 +100,30 @@ func Build(in Input) (*Plan, error) {
 		args = newPathTranslator(in, workdir, in.Warn.warn).transform(p, args)
 	}
 
-	var names []string
-	p.Env, names = environment(in)
+	names, set := envArgs(in)
+	p.Env = in.Environ
 	p.Args = p.Target.ExecArgs(docker.ExecOptions{
 		TTY:     in.TTY,
 		User:    in.Alias.User,
 		Workdir: workdir,
 		Env:     names,
+		Set:     set,
 	}, args)
 	return p, nil
 }
 
-// environment returns the docker process environment, and the names of the variables exec forwards.
-// Vars are appended after the inherited environment: for duplicate keys, os/exec keeps the last.
-func environment(in Input) (env, names []string) {
-	env = slices.Clone(in.Environ)
-	names = in.Alias.Env.Names(in.Environ)
-	for _, k := range slices.Sorted(maps.Keys(in.Alias.Vars)) {
-		env = append(env, k+"="+in.Alias.Vars[k])
-		if !slices.Contains(names, k) {
-			names = append(names, k)
+// envArgs returns the names of the host variables exec forwards, and the alias vars it sets, as
+// sorted NAME=value entries. A var wins over a forwarded variable of the same name.
+func envArgs(in Input) (names, set []string) {
+	for _, n := range in.Alias.Env.Names(in.Environ) {
+		if _, ok := in.Alias.Vars[n]; !ok {
+			names = append(names, n)
 		}
 	}
-	return env, names
+	for _, k := range slices.Sorted(maps.Keys(in.Alias.Vars)) {
+		set = append(set, k+"="+in.Alias.Vars[k])
+	}
+	return names, set
 }
 
 // NewTarget returns a service of the project's compose project.

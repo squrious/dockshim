@@ -39,13 +39,13 @@ func run(m *testing.M) int {
 
 // fakeDocker records calls in $FAKE_DOCKER_STATE/calls and emulates the subcommands dockshim uses.
 // A target is running when $FAKE_DOCKER_STATE/running exists.
-// up saves its environment in $FAKE_DOCKER_STATE/up-env.
+// up and exec save their environment in $FAKE_DOCKER_STATE/up-env and exec-env.
 // inspect prints $FAKE_DOCKER_STATE/mounts as the container mounts, [] when missing.
 // compose config prints $FAKE_DOCKER_STATE/compose-config, and fails when it is missing.
 // Creating $FAKE_DOCKER_STATE/stop-on-exec makes the next exec stop the target and fail.
 // cp extracts the archive into $FAKE_DOCKER_STATE/cp, standing for the container /tmp.
-// exec prints what it received, and exits with $FAKE_EXEC_EXIT. It emulates `cat` (stdin, or
-// files from the copied /tmp) and `rm`.
+// exec prints what it received (--env NAME with its value from the environment), and exits with
+// $FAKE_EXEC_EXIT. It emulates `cat` (stdin, or files from the copied /tmp) and `rm`.
 // With $FAKE_EXEC_SLEEP, exec creates $FAKE_DOCKER_STATE/sleeping then sleeps.
 const fakeDocker = `#!/bin/sh
 state=${FAKE_DOCKER_STATE:?}
@@ -66,10 +66,11 @@ case "$sub" in
   exec)
     [ -e "$state/running" ] || { echo "fake: not running" >&2; exit 1; }
     if [ -e "$state/stop-on-exec" ]; then rm -f "$state/stop-on-exec" "$state/running"; exit 1; fi
+    /usr/bin/env > "$state/exec-env"
     printf '%s\n' "dir $PWD"
     while [ $# -gt 0 ]; do
       case "$1" in
-        --env) eval "v=\${$2-<unset>}"; printf '%s\n' "env $2=$v"; shift 2;;
+        --env) case "$2" in *=*) printf '%s\n' "env $2";; *) eval "v=\${$2-<unset>}"; printf '%s\n' "env $2=$v";; esac; shift 2;;
         --user|--workdir) printf '%s\n' "$1 $2"; shift 2;;
         -T|--interactive|--tty) printf '%s\n' "flag $1"; shift;;
         *) break;;

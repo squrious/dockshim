@@ -17,6 +17,7 @@ type ExecOptions struct {
 	User    string
 	Workdir string   // empty keeps the container's own
 	Env     []string // variable names, values are read from the docker process env
+	Set     []string // NAME=value entries, passed as they are
 }
 
 // Target is where commands run. Compose is the only implementation; tests fake it.
@@ -133,6 +134,9 @@ func (c *Compose) ExecArgs(opts ExecOptions, argv []string) []string {
 	}
 	for _, name := range opts.Env {
 		args = append(args, "--env", name)
+	}
+	for _, kv := range opts.Set {
+		args = append(args, "--env", kv)
 	}
 	if opts.User != "" {
 		args = append(args, "--user", opts.User)

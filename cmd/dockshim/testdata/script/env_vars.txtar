@@ -1,0 +1,28 @@
+# Alias vars go to the container by value, and never reach docker's own environment.
+exec dockshim install
+env HOME=/home/caller FOO=host
+exec .dockshim/bin/php
+stdout '^env HOME=/home/app$'
+stdout '^env PATH=/container/bin$'
+stdout '^env DOCKER_HOST=tcp://dind:2375$'
+
+# A var on a forwarded name is sent by value only, never also by name.
+stdout '^env FOO=x$'
+! stdout 'FOO=host'
+
+# The calls to docker (up and exec) see the caller's environment.
+grep '^HOME=/home/caller$' $FAKE_DOCKER_STATE/up-env
+grep '^HOME=/home/caller$' $FAKE_DOCKER_STATE/exec-env
+exec sh -c 'grep -Fx "PATH=$PATH" "$FAKE_DOCKER_STATE/up-env"'
+exec sh -c 'grep -Fx "PATH=$PATH" "$FAKE_DOCKER_STATE/exec-env"'
+! grep '^PATH=/container/bin$' $FAKE_DOCKER_STATE/up-env
+! grep '^PATH=/container/bin$' $FAKE_DOCKER_STATE/exec-env
+! grep '^DOCKER_HOST=' $FAKE_DOCKER_STATE/up-env
+! grep '^DOCKER_HOST=' $FAKE_DOCKER_STATE/exec-env
+
+-- .dockshim.yaml --
+aliases:
+  php:
+    service: tools
+    env:
+      vars: {HOME: /home/app, PATH: /container/bin, DOCKER_HOST: 'tcp://dind:2375', FOO: x}

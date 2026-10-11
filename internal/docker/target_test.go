@@ -63,9 +63,9 @@ func TestCompose(t *testing.T) {
 		t.Fatalf("calls = %v", r.calls)
 	}
 
-	opts := ExecOptions{User: "1000:1000", Workdir: "/app/sub", Env: []string{"A", "B"}}
+	opts := ExecOptions{User: "1000:1000", Workdir: "/app/sub", Env: []string{"A", "B"}, Set: []string{"C=1", "D=x y"}}
 	got := strings.Join(c.ExecArgs(opts, []string{"php", "-v"}), " ")
-	if got != "compose --file /proj/a.yaml --project-name p exec -T --env A --env B --user 1000:1000 --workdir /app/sub tools php -v" {
+	if got != "compose --file /proj/a.yaml --project-name p exec -T --env A --env B --env C=1 --env D=x y --user 1000:1000 --workdir /app/sub tools php -v" {
 		t.Fatalf("exec args = %s", got)
 	}
 	opts = ExecOptions{TTY: true}

@@ -49,11 +49,13 @@ The scripts are generated: don't edit them, change the config and run `install` 
 
 ## Environment forwarding
 
-Every host variable is forwarded by name (`--env NAME`), so values don't appear in `ps`. These are never forwarded, because their values describe the host:
+Every host variable is forwarded by name (`--env NAME`), so a secret stays out of `ps`. These are never forwarded, because their values describe the host:
 - names: `PATH HOME PWD OLDPWD TMPDIR TMP TEMP USER LOGNAME HOSTNAME SHELL SHLVL _ LS_COLORS`
 - prefixes: `COMPOSE_ DOCKER_ SSH_ XDG_ WSL BASH_FUNC_`
 
-The built-in rules, then `defaults`, then the alias add to these lists. `allow` wins over any deny. `vars` override host values and bypass the deny rules.
+The built-in rules, then `defaults`, then the alias add to these lists. `allow` wins over any deny.
+
+`vars` are set in the container by value (`--env NAME=value`): they override host values and bypass the deny rules, but show in `ps`. To keep a secret out of it, forward it from the host instead. `vars` affect neither docker itself nor Compose interpolation, which only see the caller's environment.
 
 ## Interpolation
 
